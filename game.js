@@ -3,10 +3,12 @@
   'use strict';
   const A = window.App, E = window.Engine, M = window.Mascots, MU = window.Music;
 
-  function Game(songId) {
-    const song = MU.song(songId) || MU.SONGS[0];
+  function Game(param) {
+    const parts = String(param || '').split('-'), concert = parts[1] === 'concert';
+    const song = MU.song(parts[0]) || MU.SONGS[0];
     const p = A.prof(), kid = A.isKid(), DB = A.DB;
-    const st = { mode: DB.input.gameMode || 'tranquille', speed: DB.input.gameSpeed || 1, metro: DB.input.metro !== false };
+    const st = { mode: concert ? 'defi' : (DB.input.gameMode || 'tranquille'), speed: DB.input.gameSpeed || 1, metro: DB.input.metro !== false };
+    const back = A.prevHash && A.prevHash.indexOf('jeu') !== 0 ? '#' + A.prevHash : '#morceaux';
 
     /* tessiture du clavier : octaves entières autour du morceau */
     const ms = song.notes.map((n) => n.m);
@@ -25,8 +27,8 @@
 
     A.shell('morceaux',
       '<div class="game">' +
-      '<div class="g-top"><a href="#morceaux" class="icon-btn" aria-label="Retour aux morceaux">' + A.ICON.back + '</a>' +
-        '<div class="g-title"><div class="eyebrow">' + A.esc(song.by) + ' · Niveau ' + song.level + '</div><div class="h2">' + A.esc(song.title) + '</div></div>' +
+      '<div class="g-top"><a href="' + back + '" class="icon-btn" aria-label="Retour">' + A.ICON.back + '</a>' +
+        '<div class="g-title"><div class="eyebrow">' + (concert ? (kid ? 'Concert de fin de monde' : 'Concert · fin du monde') : A.esc(song.by) + ' · Niveau ' + song.level) + '</div><div class="h2">' + A.esc(song.title) + '</div></div>' +
         '<div class="g-ctrl"><div class="seg" role="group" aria-label="Mode de jeu"><button data-gm="tranquille">Tranquille</button><button data-gm="defi">Défi</button></div>' +
         '<div class="chip g-speed"><button class="icon-btn" id="slower" aria-label="Ralentir">−</button><span id="speed"></span><button class="icon-btn" id="faster" aria-label="Accélérer">+</button></div>' +
         '<button class="btn small ghost" id="listen">Écouter</button></div></div>' +
@@ -74,7 +76,7 @@
       draw();
     }
     const ro = new ResizeObserver(fit); ro.observe(area);
-    A.onLeave(() => { ro.disconnect(); cancelAnimationFrame(raf); lightsOff(); E.sound.enabled = true; for (const m in keyEls) keyEls[m].classList.remove('on', 'target'); });
+    A.onLeave(() => { ro.disconnect(); cancelAnimationFrame(raf); lightsOff(); A.stopInput(); E.sound.enabled = true; for (const m in keyEls) keyEls[m].classList.remove('on', 'target'); });
 
     function setControls() {
       document.querySelectorAll('[data-gm]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.gm === st.mode));
@@ -169,6 +171,7 @@
       over.innerHTML = '<div class="g-card"><div class="eyebrow">' + (st.mode === 'tranquille' ? 'Mode Tranquille' : 'Mode Défi') + '</div>' +
         '<div class="h2" style="margin:4px 0 8px">' + (st.mode === 'tranquille' ? 'La musique attend la bonne note' : 'Joue en rythme, avec le métronome') + '</div>' +
         '<div class="help">' + A.esc(song.desc) + (best ? ' Record : ' + stars(best.stars) + ' ' + best.acc + ' %.' : '') + '</div>' +
+        (concert ? '<div class="help step-rule">Pour valider le concert : au moins 1 étoile en mode Défi. Tu peux ralentir le tempo avec − .</div>' : '') +
         (st.mode === 'defi' ? '<label class="row" style="margin-top:10px;font-size:14px"><input type="checkbox" id="gmetro"' + (st.metro ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:var(--accent)"> Métronome</label>' : '') +
         '<button class="btn" id="ggo" style="margin-top:14px">' + A.ICON.play + (kid ? ' C\'est parti' : ' Jouer') + '</button>' +
         (DB.input.source !== 'ecran' && !A.inputOn() ? '<div class="help" style="margin-top:10px">Votre clavier n\'est pas connecté : <a href="#clavier">le connecter</a>, ou touchez le clavier à l\'écran.</div>' : '') + '</div>';
@@ -176,7 +179,8 @@
       document.getElementById('ggo').onclick = start;
     }
     function stop() { cancelAnimationFrame(raf); run = null; lightsOff(); for (const m in keyEls) keyEls[m].classList.remove('target', 'demo'); }
-    function start() {
+    async function start() {
+      document.getElementById('ggo').disabled = true; await A.startInput(); if (!document.getElementById('gover')) return;
       reset(); over.hidden = true; over.innerHTML = '';
       run = { kind: 'play', beat: st.mode === 'defi' ? -4 : -1.5, gi: 0, good: 0, wrong: 0, combo: 0, best: 0, perfect: 0, okay: 0, missN: 0, paused: false, pressed: new Set(), lastTick: -5 };
       document.getElementById('gpause').hidden = false;
@@ -282,13 +286,15 @@
       if (record) p.songs[song.id] = { stars: nStars, acc, mode: st.mode };
       let coins = 0; if (kid) { coins = nStars * 10 + (st.mode === 'defi' ? 5 : 0); p.coins += coins; }
       A.save();
+      const res = window.Path ? window.Path.report('morceau', song.id, { stars: nStars, mode: st.mode }) : null;
       const detail = st.mode === 'tranquille' ? r.good + ' notes justes · ' + r.wrong + ' fausses · meilleure série ' + r.best
         : r.perfect + ' parfaites · ' + r.okay + ' bien · ' + r.missN + ' ratées · meilleure série ' + r.best;
       over.hidden = false;
       over.innerHTML = '<div class="g-card"><div class="g-res-mascot" style="color:var(--text)">' + M.svg(p.mascot, nStars >= 2 ? 'happy' : 'idle') + '</div>' +
         '<div class="g-stars" aria-label="' + nStars + ' étoiles sur 3">' + stars(nStars) + '</div>' +
         '<div class="h1" style="font-size:44px">' + acc + ' %</div><div class="help">' + detail + (coins ? ' · +' + coins + ' pièces' : '') + (record ? ' · nouveau record' : '') + '</div>' +
-        '<div class="row" style="margin-top:16px;justify-content:center;flex-wrap:wrap"><button class="btn" id="gagain">Rejouer</button><a class="btn ghost" href="#morceaux">Autres morceaux</a></div></div>';
+        (res ? '<div class="g-next">' + window.Path.resultHtml(res) + '</div>' : '') +
+        '<div class="row" style="margin-top:12px;justify-content:center;flex-wrap:wrap"><button class="btn' + (res && res.passed ? ' ghost' : '') + '" id="gagain">Rejouer</button><a class="btn ghost" href="' + back + '">' + (back === '#morceaux' ? 'Autres morceaux' : 'Retour') + '</a></div></div>';
       document.getElementById('gagain').onclick = ready;
       if (nStars >= 2) react('happy', kid ? 'Quelle star !' : 'Belle interprétation');
     }
