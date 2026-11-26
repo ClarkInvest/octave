@@ -1,7 +1,7 @@
 /* Octave — application familiale d'apprentissage du piano (socle v0.1) */
 (function () {
   'use strict';
-  const VERSION = '0.2';
+  const VERSION = '0.3';
   const E = window.Engine, M = window.Mascots;
   const app = document.getElementById('app');
   const KEY = 'octave.v1';
@@ -70,14 +70,16 @@
   const onLeave = (fn) => cleanup.push(fn);
   function go(route) { location.hash = '#' + route; }
   const SCREENS = {};
-  let param = '';
+  let param = '', lastHash = '', prevHash = '';
   function route() {
     cleanup.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } }); cleanup = [];
     const raw = (location.hash || '').replace(/^#\/?/, '');
+    if (raw !== lastHash) { prevHash = lastHash; lastHash = raw; }
     let name = raw.split('-')[0]; param = raw.slice(name.length + 1);
     if (!SCREENS[name]) { name = ''; param = ''; }
     if (!prof() && name !== 'qui') name = 'qui';
     if (!name) name = 'accueil';
+    if (window.octaveUpdate && name === 'accueil') { location.reload(); return; }
     applyTheme();
     SCREENS[name](param);
     window.scrollTo(0, 0);
@@ -104,7 +106,8 @@
         '<span><span style="display:block;font-family:var(--font-display);font-size:24px;letter-spacing:1px;line-height:1">' + esc(p.name.toUpperCase()) + '</span>' +
         '<span class="row" style="gap:8px;margin-top:4px"><span style="font-size:12px;font-weight:700;color:var(--accent)">NIVEAU ' + (1 + Math.floor(p.coins / 100)) + '</span><span class="progress" style="width:84px"><i style="width:' + (p.coins % 100) + '%"></i></span></span></span></a>'
       : '<a href="#qui" class="icon-btn" style="border:2px solid var(--accent);font-weight:600" aria-label="Changer de joueur">' + esc(p.name[0]) + '</a>';
-    return '<div class="between">' + avatar + '<div class="row" style="gap:8px">' + (extra || '') + '</div></div>';
+    const gear = location.hash.indexOf('reglages') >= 0 ? '' : '<a href="#reglages" class="icon-btn" aria-label="Réglages">' + ICON.gear.replace('<svg ', '<svg width="20" height="20" ') + '</a>';
+    return '<div class="between">' + avatar + '<div class="row" style="gap:8px">' + (extra || '') + gear + '</div></div>';
   }
 
   /* ---------- Écran : qui joue ? ---------- */
@@ -129,55 +132,59 @@
     const p = prof();
     const status = '<a href="#clavier" class="chip" style="text-decoration:none"><span class="dot' + (inputOn() ? ' on' : '') + '"></span>' + esc(inputLabel()) + '</a>';
     if (isKid()) return KidHome(p, status);
+    const PA = window.Path, cur = PA.current(p), w = cur ? cur.world : PA.WORLDS.filter((x) => !x.soon).pop();
     const hour = new Date().getHours(), hello = hour < 18 ? 'Bonjour' : 'Bonsoir';
-    const bars = [26, 46, 36, 62, 50, 74, 42, 66, 32, 56, 80, 40, 60, 28].map((h, i) => '<i style="height:' + h + 'px"' + (i === 10 ? ' class="a"' : '') + '></i>').join('');
+    const fresh = !p.path || !Object.keys(p.path).length;
+    const dots = w.steps.map((s) => '<i class="' + (PA.isDone(p, s) ? 'ok' : s === cur ? 'now' : '') + '"></i>').join('');
+    const after = cur ? w.steps.slice(cur.n, cur.n + 3) : [];
     const tip = TIPS[new Date().getDate() % TIPS.length];
-    const lessons = window.Learn ? window.Learn.LESSONS : [], les = p.lessons || {};
-    const nextL = lessons.find((l) => !(les[l.id] && les[l.id].score >= les[l.id].total * 0.75));
-    const songs = window.Music ? window.Music.SONGS.slice().sort((x, y) => x.level - y.level) : [];
+    const notes = PA.learned(p).map((m) => window.Music.natName(m)).filter((x, i, a) => a.indexOf(x) === i);
+    const songs = window.Music.SONGS.filter((s) => PA.STEPS.some((st) => (st.type === 'morceau' || st.type === 'concert') && st.ref === s.id && PA.unlocked(p, st)) || (p.songs || {})[s.id]);
     shell('accueil',
-      header(status + '<a href="#reglages" class="icon-btn" aria-label="Réglages">' + ICON.gear.replace('<svg ', '<svg width="20" height="20" ') + '</a>') +
-      '<div><div class="muted" style="font-size:14px">' + hello + ', ' + esc(p.name) + '</div><h1 class="h1" style="margin-top:4px">Prêt à<br>jouer ?</h1></div>' +
+      header(status) +
+      '<div><div class="muted" style="font-size:14px">' + hello + ', ' + esc(p.name) + '</div><h1 class="h1" style="margin-top:4px">' + (fresh ? 'On commence ?' : 'On continue ?') + '</h1></div>' +
       '<div class="cols"><div class="stack">' +
-        '<div class="hero"><div class="bars"><span class="eyebrow accent-text">' + (nextL ? 'Continuer' : 'Parcours terminé') + '</span>' + bars + '</div><div class="body">' +
-        (nextL ? '<div><div class="h2">' + esc(nextL.title) + '</div><div class="muted" style="font-size:13px;margin-top:4px">Solfège · leçon ' + (lessons.indexOf(nextL) + 1) + ' sur ' + lessons.length + ' · ' + nextL.min + ' min, sans piano</div></div>' +
-          '<div class="progress"><i style="width:' + Math.round(lessons.indexOf(nextL) / lessons.length * 100) + '%"></i></div>' +
-          '<a href="#cours-' + nextL.id + '" class="btn">' + ICON.play + ' Lire la leçon</a>'
-          : '<div><div class="h2">Toutes les leçons sont acquises</div><div class="muted" style="font-size:13px;margin-top:4px">Révisez avec les entraînements express</div></div><a href="#parcours" class="btn">Parcours</a>') +
+        '<div class="hero next-hero"><div class="nh-top"><span class="eyebrow accent-text">' + (cur ? (fresh ? 'Votre première étape' : 'Votre prochaine étape') : 'Parcours terminé') + '</span><span class="eyebrow">Monde ' + w.n + ' · ' + esc(w.title) + '</span></div><div class="body">' +
+        (cur ? '<div class="row" style="align-items:flex-start"><span class="nh-icon">' + PA.TICON[cur.type] + '</span><div style="min-width:0"><div class="h2">' + esc(PA.stepTitle(cur)) + '</div><div class="muted" style="font-size:13px;margin-top:4px">Étape ' + cur.n + ' sur ' + w.steps.length + ' · ' + PA.stepMeta(cur) + '</div></div></div>' +
+          '<div class="world-dots" aria-label="Avancement dans le monde">' + dots + '</div>' +
+          '<a href="' + PA.href(cur) + '" class="btn">' + ICON.play + (fresh ? ' Commencer' : ' Continuer') + '</a>' +
+          (after.length ? '<div class="help">Ensuite : ' + after.map((s) => esc(PA.stepTitle(s))).join(' · ') + '</div>' : '')
+          : '<div class="h2">Les mondes suivants arrivent bientôt</div><div class="help">En attendant, révisez avec l\'entraînement adapté et les morceaux.</div><a href="#parcours" class="btn">Voir le parcours</a>') +
         '</div></div>' +
         '<div class="tip" style="color:var(--text)">' + M.svg(p.mascot) + '<div><div class="label muted" style="font-size:12px">Astuce de ' + esc(M.list[p.mascot].name) + '</div><div style="font-size:14px;line-height:1.35">' + tip + '</div></div></div>' +
       '</div><div class="stack">' +
+        '<a class="drill drill-main" href="#exo-libre"><span class="eyebrow">Au clavier · 3 min</span><span class="label">Entraînement adapté</span><span class="help">Avec vos notes (' + notes.join(', ') + '). Plus vous réussissez, plus il se corse.</span></a>' +
         '<div class="between"><div class="h2" style="font-size:18px">Vos morceaux</div><a href="#morceaux" class="accent-text" style="font-size:13px;text-decoration:none">Tout voir</a></div>' +
-        '<div class="path">' + songs.slice(0, 4).map((s) => { const b = (p.songs || {})[s.id]; return '<a class="path-item" href="#jeu-' + s.id + '"><span class="path-num' + (b && b.stars ? ' ok' : '') + '">' + (b ? b.stars + '★' : '♪') + '</span><span class="path-txt"><span class="label">' + esc(s.title) + '</span><span class="help">Niveau ' + s.level + ' · ' + esc(s.by) + '</span></span></a>'; }).join('') + '</div>' +
-        '<div class="card"><div class="eyebrow">Test rapide</div><div class="between"><div style="font-family:var(--font-display);font-weight:700;font-size:28px">' + (p.best ? p.best.score + '/10' : '—') + '</div><a class="muted" href="#clavier" style="font-size:13px">' + (p.best ? 'en ' + p.best.time + ' s' : 'Pas encore joué') + '</a></div></div>' +
+        '<div class="path">' + songs.slice(0, 4).map((s) => { const b = (p.songs || {})[s.id]; return '<a class="path-item" href="#jeu-' + s.id + '"><span class="path-num' + (b && b.stars ? ' ok' : '') + '">' + (b ? b.stars + '★' : '♪') + '</span><span class="path-txt"><span class="label">' + esc(s.title) + '</span><span class="help">Niveau ' + s.level + ' · ' + esc(s.by) + '</span></span></a>'; }).join('') +
+        (songs.length ? '' : '<div class="path-item"><span class="help">Vos premiers morceaux se débloquent dans le parcours.</span></div>') + '</div>' +
       '</div></div>');
   }
 
   function KidHome(p, status) {
+    const PA = window.Path, MU = window.Music, cur = PA.current(p), w = cur ? cur.world : PA.WORLDS.filter((x) => !x.soon).pop();
     const dad = DB.profiles.find((x) => x.mode === 'adulte' && x.id !== p.id);
-    const MU = window.Music, mine = p.songs || {};
-    const kidSongs = ['riff', 'lune', 'jacques', 'joie', 'jingle'];
-    const today = MU.song(kidSongs[new Date().getDate() % kidSongs.length]);
-    const tour = [['clavier-defi', 'Échauffement', !!p.best], ['jeu-lune', 'La lune', !!(mine.lune && mine.lune.stars)], ['jeu-riff', 'Le riff', !!(mine.riff && mine.riff.stars)], ['jeu-jacques', 'Frère Jacques', !!(mine.jacques && mine.jacques.stars)], ['jeu-joie', 'Grand final', !!(mine.joie && mine.joie.stars)]];
-    const cur = Math.max(0, tour.findIndex((t) => !t[2]));
+    const mine = p.songs || {};
+    const open = MU.SONGS.filter((s) => PA.STEPS.some((st) => (st.type === 'morceau' || st.type === 'concert') && st.ref === s.id && PA.unlocked(p, st)) || mine[s.id]);
+    const today = open.length ? open[new Date().getDate() % open.length] : null;
+    const from = cur ? Math.max(0, Math.min(cur.n - 2, w.steps.length - 5)) : Math.max(0, w.steps.length - 5);
+    const strip = w.steps.slice(from, from + 5);
     shell('accueil',
       header('<span class="chip"><span class="coin"></span>' + p.coins + '</span>') +
       '<h1 class="h1">Ce soir,<br>tu montes <span style="color:var(--accent)">sur scène</span></h1>' +
       '<div class="cols"><div class="stack">' +
-        '<a href="#jeu-' + today.id + '" class="kid-hero"><span class="mascot">' + M.svg(p.mascot, 'happy') + '</span>' +
-        '<span style="font-size:12px;font-weight:700;letter-spacing:1.4px">DÉFI DU JOUR</span><span class="big">' + esc(today.title) + '</span>' +
-        '<span style="font-size:13px;font-weight:500">Niveau ' + today.level + ' · ' + (mine[today.id] ? 'record ' + mine[today.id].stars + ' étoile' + (mine[today.id].stars > 1 ? 's' : '') : 'jamais joué') + '</span><span class="btn go">' + ICON.play + ' C\'est parti</span></a>' +
-        '<div class="between"><div class="h2">Ta tournée</div><a href="#parcours" class="muted" style="font-size:12px">Monde 1</a></div>' +
-        '<div style="position:relative;display:flex;justify-content:space-between;padding:0 4px"><div aria-hidden="true" style="position:absolute;left:30px;right:30px;top:26px;height:3px;background:var(--line)"></div>' +
-        tour.map((t, k) => '<a href="#' + t[0] + '" style="position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;width:62px;text-decoration:none">' +
-          (k === cur ? '<span style="width:54px;height:54px;border-radius:27px;background:var(--alt);border:4px solid #fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:22px">' + (k + 1) + '</span>'
-            : '<span style="width:40px;height:40px;margin-top:7px;border-radius:20px;background:' + (t[2] ? 'var(--accent)' : 'var(--surf)') + ';border:2px solid ' + (t[2] ? 'var(--accent)' : 'var(--line)') + ';display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;color:' + (t[2] ? 'var(--on-accent)' : 'var(--muted)') + '">' + (t[2] ? '✓' : k === 4 ? '★' : k + 1) + '</span>') +
-          '<span style="font-size:11px;color:' + (k === cur ? 'var(--text)' : 'var(--muted)') + ';text-align:center">' + t[1] + '</span></a>').join('') + '</div>' +
+        (cur ? '<a href="' + PA.href(cur) + '" class="kid-hero"><span class="mascot">' + M.svg(p.mascot, 'happy') + '</span>' +
+          '<span style="font-size:12px;font-weight:700;letter-spacing:1.4px">PROCHAINE ÉTAPE · ' + cur.n + ' / ' + w.steps.length + '</span><span class="big">' + esc(PA.stepTitle(cur)) + '</span>' +
+          '<span class="row" style="gap:6px;font-size:13px;font-weight:500">' + PA.TICON[cur.type] + PA.TLABEL[cur.type] + '</span><span class="btn go">' + ICON.play + ' C\'est parti</span></a>'
+          : '<div class="kid-hero"><span class="mascot">' + M.svg(p.mascot, 'happy') + '</span><span style="font-size:12px;font-weight:700;letter-spacing:1.4px">TOURNÉE TERMINÉE</span><span class="big">Les prochains concerts arrivent</span></div>') +
+        '<div class="between"><div class="h2">Ta tournée</div><a href="#parcours" class="muted" style="font-size:12px">Monde ' + w.n + ' · ' + esc(w.kid) + '</a></div>' +
+        '<div class="tour"><div class="tour-line" aria-hidden="true"></div>' +
+        strip.map((s) => { const done = PA.isDone(p, s), here = s === cur; return '<a href="' + (done || here ? PA.href(s) : '#parcours') + '" class="tour-step' + (here ? ' here' : done ? ' done' : '') + '"><span class="tour-dot">' + (done ? '✓' : here ? PA.TICON[s.type] : s.n) + '</span><span class="tour-lab">' + PA.TLABEL[s.type] + '</span></a>'; }).join('') + '</div>' +
       '</div><div class="stack">' +
+        '<a class="drill drill-main" href="#exo-libre"><span class="eyebrow">Au clavier · 3 min</span><span class="label">Entraînement express</span><span class="help">Avec tes notes. Plus tu réussis, plus ça monte de niveau !</span></a>' +
+        (today ? '<a class="card line kid-row" href="#jeu-' + today.id + '"><span class="eyebrow">Défi du jour</span><span class="label">' + esc(today.title) + '</span><span class="help">' + (mine[today.id] ? 'Ton record : ' + mine[today.id].stars + ' étoile' + (mine[today.id].stars > 1 ? 's' : '') : 'Pas encore joué') + '</span></a>' : '') +
         (dad ? '<div class="card line" style="flex-direction:row;align-items:center"><div class="row" style="gap:4px"><span class="icon-btn" style="background:var(--alt);font-weight:700">' + esc(p.name[0]) + '</span><span style="font-family:var(--font-display);color:var(--accent);font-size:18px">VS</span><span class="icon-btn" style="font-weight:700">' + esc(dad.name[0]) + '</span></div>' +
-          '<div style="flex:1"><div class="label">Défi contre ' + esc(dad.name) + '</div><div class="help">' + (dad.best ? 'Son record : ' + dad.best.score + '/10 en ' + dad.best.time + ' s' : 'Il n\'a pas encore joué !') + '</div></div></div>' : '') +
+          '<div style="flex:1"><div class="label">Défi contre ' + esc(dad.name) + '</div><div class="help">' + (dad.path ? 'Il a validé ' + Object.keys(dad.path).length + ' étape' + (Object.keys(dad.path).length > 1 ? 's' : '') + ', et toi ' + Object.keys(p.path || {}).length + '.' : 'Il n\'a pas encore commencé !') + '</div></div></div>' : '') +
         '<a class="drill" href="#quiz-lecture-sol"><span class="label">Révise sans piano</span><span class="help">Lis les notes · 10 questions</span></a>' +
-        '<div class="card"><div class="eyebrow">Ton record</div><div style="font-family:var(--font-display);font-size:44px;line-height:1">' + (p.best ? p.best.score + '/10 · ' + p.best.time + ' s' : 'À toi de jouer') + '</div></div>' +
         '<div class="row">' + status + '</div>' +
       '</div></div>');
   }
@@ -190,6 +197,37 @@
       shell(which, header() + '<h1 class="h1">' + txt.t + '</h1><div class="card" style="flex-direction:row;align-items:center;gap:18px"><div style="width:96px;height:96px;flex-shrink:0;color:var(--text)">' + M.svg(p.mascot) + '</div><div><div class="h2">Bientôt ici</div><div class="help" style="margin-top:6px">' + txt.d + '</div></div></div>');
     };
   }
+
+  /* ---------- Verrou parent (en mode Enfant) ---------- */
+  function gate(ok) {
+    if (!isKid()) { ok(); return; }
+    const a = 12 + Math.floor(Math.random() * 8), b = 3 + Math.floor(Math.random() * 6);
+    const d = document.createElement('div'); d.className = 'gate'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Question pour les parents');
+    d.innerHTML = '<div class="g-card"><div class="eyebrow">Réservé aux parents</div><div class="h2" style="margin:6px 0 12px">Combien font ' + a + ' × ' + b + ' ?</div>' +
+      '<input id="gatein" class="gate-in" inputmode="numeric" autocomplete="off" aria-label="Réponse"><div class="row" style="margin-top:14px;justify-content:center"><button class="btn ghost" id="gateno">Annuler</button><button class="btn" id="gateok">Valider</button></div></div>';
+    document.body.appendChild(d);
+    const inp = d.querySelector('#gatein'); setTimeout(() => inp.focus(), 50);
+    const close = () => d.remove();
+    const check = () => { if (+inp.value === a * b) { close(); ok(); } else { inp.value = ''; inp.placeholder = 'Essaie encore'; } };
+    d.querySelector('#gateno').onclick = close; d.querySelector('#gateok').onclick = check;
+    inp.onkeydown = (e) => { if (e.key === 'Enter') check(); };
+    onLeave(close);
+  }
+
+  /* ---------- Entrée active pour jouer (micro ou câble) ---------- */
+  async function startInput() {
+    E.audio();
+    const s = DB.input.source;
+    if (s === 'micro') {
+      if (!E.mic.running) await E.mic.start();
+      E.sound.enabled = false;
+      if (!E.mic.running) toast('Micro indisponible : utilisez le clavier à l\'écran');
+    } else {
+      E.sound.enabled = true;
+      if (s === 'midi' && E.midi.supported && E.midi.status === 'off') { await E.midi.init(); if (DB.input.outId) E.midi.outId = DB.input.outId; }
+    }
+  }
+  function stopInput() { if (E.mic.running) E.mic.stop(); E.sound.enabled = true; }
 
   /* ---------- Écran : réglages ---------- */
   function Settings() {
@@ -209,23 +247,26 @@
       '</div><div class="stack">' +
         '<div class="eyebrow">Son</div><div class="list"><div class="item"><label class="label" for="vol">Volume de l\'appli</label><input id="vol" type="range" min="0" max="1" step="0.05" value="' + DB.input.volume + '" style="width:160px;accent-color:var(--accent)"></div></div>' +
         '<div class="eyebrow">Joueurs</div><div class="list"><div class="item"><span class="label">Changer de joueur</span><a href="#qui" class="btn small ghost">Qui joue ?</a></div>' +
-        '<div class="item"><span class="label">Remettre à zéro les scores de ' + esc(p.name) + '</span><button class="btn small ghost" id="reset">Effacer</button></div></div>' +
+        '<div class="item"><span class="label">Remettre à zéro la progression de ' + esc(p.name) + '</span><button class="btn small ghost" id="reset">Effacer</button></div></div>' +
+        '<div class="eyebrow">Niveaux au clavier</div><div class="list">' + ['trouve', 'joue', 'lis', 'suite'].map((k) => '<div class="item"><span class="label">' + window.Path.KINDS[k].title + '</span><span class="chip lvl">Niveau ' + window.Path.lvlOf(p, k) + '</span></div>').join('') + '</div>' +
+        '<div class="help">Les niveaux s\'ajustent tout seuls : ils montent à 90 % de réussite et redescendent sous 60 %.' + (isKid() ? ' Le changement de mode et la remise à zéro demandent une réponse d\'adulte.' : '') + '</div>' +
         '<div class="help">Octave · version ' + VERSION + '</div>' +
       '</div></div>');
-    app.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => {
+    app.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => gate(() => {
       p.mode = b.dataset.mode; if (!M.list[p.mascot].modes.includes(p.mode)) p.mascot = M.forMode(p.mode)[0];
       save(); route();
-    });
+    }));
     app.querySelectorAll('[data-theme-id]').forEach((b) => b.onclick = () => { if (b.disabled) return; p.theme = b.dataset.themeId; save(); route(); });
     app.querySelectorAll('[data-pal]').forEach((b) => b.onclick = () => { p.mascot = b.dataset.pal; save(); route(); toast(M.list[p.mascot].name + ' t\'accompagne !'); });
     const vol = document.getElementById('vol');
     vol.oninput = () => { DB.input.volume = +vol.value; E.sound.volume(DB.input.volume); };
     vol.onchange = () => { save(); E.sound.play(67, 90); setTimeout(() => E.sound.stop(67), 300); };
     const reset = document.getElementById('reset');
-    reset.onclick = () => {
+    reset.onclick = () => gate(() => {
       if (!reset.dataset.ok) { reset.dataset.ok = '1'; reset.textContent = 'Sûr ? Touche encore'; return; }
-      p.best = null; p.coins = 0; save(); toast('Scores effacés'); route();
-    };
+      ['best', 'songs', 'lessons', 'path', 'skill'].forEach((k) => { delete p[k]; }); p.best = null; p.coins = 0;
+      save(); toast('Progression effacée'); route();
+    });
   }
 
   /* ---------- Écran : mon clavier ---------- */
@@ -419,9 +460,15 @@
     navigator.permissions.query({ name: 'midi' }).then((st) => { if (st.state === 'granted') E.midi.init().then(() => { E.midi.onchange = null; if (DB.input.outId) E.midi.outId = DB.input.outId; route(); }); }).catch(() => {});
   }
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    const hadSW = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadSW) return;
+      const h = location.hash.replace('#', '');
+      if (!h || h === 'accueil' || h === 'qui') location.reload(); else { window.octaveUpdate = true; toast('Nouvelle version prête : elle s\'affichera au retour à l\'accueil'); }
+    });
   }
   Object.assign(SCREENS, { qui: Who, accueil: Home, clavier: Keyboard, parcours: Soon('parcours'), morceaux: Soon('morceaux'), reglages: Settings });
-  window.App = { get DB() { return DB; }, save, prof, isKid, shell, header, esc, toast, go, onLeave, ICON, screens: SCREENS, route, inputOn, inputLabel, VERSION };
+  window.App = { get DB() { return DB; }, get prevHash() { return prevHash; }, startInput, stopInput, gate, save, prof, isKid, shell, header, esc, toast, go, onLeave, ICON, screens: SCREENS, route, inputOn, inputLabel, VERSION };
   window.addEventListener('DOMContentLoaded', route);
 })();
