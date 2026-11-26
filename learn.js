@@ -18,6 +18,17 @@
     for (let m = from; m <= to; m++) if (E.isBlack(m)) { const i = wh.indexOf(m - 1); s += '<rect x="' + ((i + 1) * kw - 9) + '" y="0" width="18" height="66" rx="3" fill="' + (mark.includes(m) ? 'var(--accent)' : '#1C1B1F') + '"/>'; }
     return s + '</svg>';
   }
+  function handSvg() {
+    const F = [[58, 34, 112], [98, 20, 124], [138, 32, 112], [176, 62, 84]];
+    let s = '<svg viewBox="0 0 230 230" width="200" role="img" aria-label="Main droite avec les numéros des doigts">';
+    const num = (x, y, n) => '<circle cx="' + x + '" cy="' + y + '" r="14" fill="var(--accent)"/><text x="' + x + '" y="' + (y + 5) + '" text-anchor="middle" font-size="15" font-weight="700" fill="var(--on-accent)">' + n + '</text>';
+    s += '<rect x="40" y="110" width="36" height="86" rx="18" fill="var(--surf2)" stroke="var(--line)" stroke-width="2" transform="rotate(-40 58 196)"/>';
+    F.forEach((f) => { s += '<rect x="' + f[0] + '" y="' + f[1] + '" width="34" height="' + f[2] + '" rx="17" fill="var(--surf2)" stroke="var(--line)" stroke-width="2"/>'; });
+    s += '<rect x="40" y="128" width="168" height="96" rx="38" fill="var(--surf2)" stroke="var(--line)" stroke-width="2"/><rect x="60" y="126" width="146" height="24" fill="var(--surf2)"/>';
+    s += num(16, 145, 1);
+    F.forEach((f, i) => { s += num(f[0] + 17, f[1] + 20, i + 2); });
+    return s + '</svg>';
+  }
   const st = (notes, clef, w) => MU.staff({ notes, clef: clef || 'sol', width: w || 560, height: 130, gap: 11, top: 38, dx: 54 });
   const lab = (arr, clef) => arr.map((x) => { const [n, d] = x.split(':'); const m = N(n); return { m, d: d ? +d : 1, label: MU.natName(m) }; });
 
@@ -34,6 +45,45 @@
         { q: 'Combien y a-t-il de noms de notes ?', o: ['7', '5', '8', '12'], why: 'Do, Ré, Mi, Fa, Sol, La, Si : 7 noms, qui se répètent à chaque octave.' },
         { q: 'Quelle note vient juste après le Si ?', o: ['Do', 'La', 'Ré', 'Sol'], why: 'Après Si, on recommence à Do, une octave plus haut.' },
         { q: 'Comment s\'appelle le Do du milieu, en France ?', o: ['Do3', 'Do1', 'Do4', 'Do5'], why: 'Do3 en France, C4 en anglais.' }] },
+    { id: 'doigts', title: 'La posture et les numéros des doigts', min: 2, body: [
+      { p: 'Assieds-toi face au milieu du clavier, le dos droit, les pieds à plat. Tes avant-bras sont à peu près à la hauteur des touches.' },
+      { p: 'La main reste <b>arrondie</b>, comme si tu tenais une balle. On appuie avec le bout des doigts, sans écraser.' },
+      { p: 'Chaque doigt a un numéro : le <b>pouce = 1</b>, l\'index = 2, le majeur = 3, l\'annulaire = 4 et le petit doigt = 5. C\'est la même chose pour les deux mains.' },
+      { hand: true, cap: 'La main droite vue de dessus : du pouce (1) au petit doigt (5)' },
+      { p: 'Sur les partitions, un petit chiffre au-dessus d\'une note indique le doigt à utiliser. Dans l\'appli, les exercices te les montrent aussi.' }],
+      quiz: [
+        { q: 'Quel est le numéro du pouce ?', o: ['1', '5', '2', '0'], why: 'Le pouce est toujours le doigt 1.' },
+        { q: 'Quel est le numéro du petit doigt ?', o: ['5', '4', '1', '3'], why: 'Du pouce au petit doigt : 1, 2, 3, 4, 5.' },
+        { q: 'Quel doigt porte le numéro 3 ?', o: ['Le majeur', 'L\'index', 'L\'annulaire', 'Le pouce'], why: 'Le majeur est le doigt du milieu : 3.' },
+        { q: 'Comment doit être la main ?', o: ['Arrondie, comme autour d\'une balle', 'Bien à plat sur les touches', 'Les doigts tendus', 'Fermée en poing'], why: 'La main arrondie permet de jouer avec le bout des doigts.' }] },
+    { id: 'do-re-mi', title: 'Do, Ré, Mi : tes trois premières notes', min: 2, body: [
+      { p: 'Pose le <b>pouce droit (1)</b> sur le Do du milieu, le Do3. L\'index (2) tombe tout seul sur <b>Ré</b>, le majeur (3) sur <b>Mi</b>.' },
+      { keys: [60, 62, 64], from: 55, to: 69, cap: 'Do avec le doigt 1, Ré avec le 2, Mi avec le 3' },
+      { p: 'Ré est la touche blanche coincée entre les deux noires. Mi est juste à droite du groupe de deux noires.' },
+      { p: 'Chaque doigt reste au-dessus de sa touche : pas besoin de bouger la main. Regarde la partition ou l\'écran, pas tes doigts !' }],
+      quiz: [
+        { q: 'Avec quel doigt joue-t-on le Do, en position de Do ?', o: ['Le pouce (1)', 'L\'index (2)', 'Le majeur (3)', 'Le petit doigt (5)'], why: 'Le pouce se pose sur Do, les autres doigts suivent.' },
+        { q: 'Quelle note est entre les deux touches noires ?', o: ['Ré', 'Do', 'Mi', 'Fa'], why: 'Ré est coincé entre les deux noires.' },
+        { q: 'Quel doigt joue le Mi ?', o: ['3', '2', '1', '4'], why: 'Do = 1, Ré = 2, Mi = 3.' }] },
+    { id: 'fa-sol', title: 'Fa et Sol : la main entière', min: 2, body: [
+      { p: 'Ajoute l\'annulaire (4) sur <b>Fa</b> et le petit doigt (5) sur <b>Sol</b>. Tes cinq doigts sont posés sur cinq notes : c\'est la <b>position de Do</b>.' },
+      { keys: [60, 62, 64, 65, 67], from: 55, to: 72, cap: 'Position de Do : Do 1, Ré 2, Mi 3, Fa 4, Sol 5' },
+      { p: 'Fa est la touche blanche juste à gauche du groupe de trois noires. Sol est juste après.' },
+      { p: 'Avec ces cinq notes, tu peux déjà jouer l\'Ode à la joie de Beethoven : c\'est le concert de fin de ce monde !' }],
+      quiz: [
+        { q: 'Où se trouve le Fa ?', o: ['Juste à gauche d\'un groupe de 3 noires', 'Entre deux touches noires', 'Juste à droite d\'un groupe de 3 noires', 'Juste à gauche d\'un groupe de 2 noires'], why: 'Le Fa est collé à gauche des trois noires.' },
+        { q: 'En position de Do, quel doigt joue le Sol ?', o: ['5', '4', '3', '1'], why: 'Do 1, Ré 2, Mi 3, Fa 4, Sol 5.' },
+        { q: 'Combien de notes couvre la position de Do ?', o: ['5', '3', '7', '8'], why: 'Un doigt par note : de Do à Sol.' }] },
+    { id: 'noire-blanche', title: 'Noire, blanche, ronde : compter les temps', min: 2, body: [
+      { p: 'Pour jouer en rythme, on compte des <b>temps</b>, réguliers comme un tic-tac.' },
+      { p: 'La <b>noire</b> (rond plein avec une barre) dure 1 temps. La <b>blanche</b> (rond vide avec une barre) dure 2 temps. La <b>ronde</b> (rond vide sans barre) dure 4 temps.' },
+      { staff: [{ m: 71, d: 1, label: '1 temps' }, { m: 71, d: 2, label: '2 temps' }, { m: 71, d: 4, label: '4 temps' }], cap: 'Noire, blanche, ronde' },
+      { p: 'Dans le jeu, la longueur des barres qui tombent montre la durée : plus la barre est longue, plus tu gardes la touche enfoncée.' }],
+      quiz: [
+        { q: 'Combien de temps dure une blanche ?', o: ['2 temps', '1 temps', '4 temps', '3 temps'], why: 'La blanche dure 2 temps.' },
+        { q: 'Quelle note dure 1 temps ?', o: ['La noire', 'La blanche', 'La ronde', 'Aucune'], why: 'La noire est l\'unité : 1 temps.' },
+        { q: 'Une ronde vaut combien de blanches ?', o: ['2', '1', '3', '4'], why: 'Ronde = 4 temps, blanche = 2 temps.' },
+        { q: 'À quoi reconnaît-on la ronde ?', o: ['Un rond vide sans barre', 'Un rond plein avec une barre', 'Un rond vide avec une barre', 'Un rond plein sans barre'], why: 'La ronde n\'a pas de barre (hampe).' }] },
     { id: 'portee', title: 'La portée et la clé de sol', min: 3, body: [
       { p: 'La musique s\'écrit sur une <b>portée</b> : 5 lignes et 4 interlignes. On compte les lignes de bas en haut.' },
       { p: 'Plus une note est placée haut sur la portée, plus le son est aigu. Plus elle est bas, plus il est grave.' },
@@ -129,16 +179,21 @@
     const i = LESSONS.indexOf(L);
     const blocks = L.body.map((b) => {
       if (b.p) return '<p class="lesson-p">' + b.p + '</p>';
-      if (b.keys) return '<figure class="lesson-fig"><div class="kbd-mini">' + miniKeys(b.keys) + '</div><figcaption>' + b.cap + '</figcaption></figure>';
+      if (b.hand) return '<figure class="lesson-fig"><div class="hand-box">' + handSvg() + '</div><figcaption>' + b.cap + '</figcaption></figure>';
+      if (b.keys) return '<figure class="lesson-fig"><div class="kbd-mini">' + miniKeys(b.keys, b.from, b.to) + '</div><figcaption>' + b.cap + '</figcaption></figure>';
       if (b.staff) return '<figure class="lesson-fig"><div class="staff-box">' + st(b.staff, 'sol') + '</div><figcaption>' + b.cap + '</figcaption></figure>';
       if (b.staffFa) return '<figure class="lesson-fig"><div class="staff-box">' + st(b.staffFa, 'fa') + '</div><figcaption>' + b.cap + '</figcaption></figure>';
       return '';
     }).join('');
+    const PA = window.Path, step = PA ? PA.stepFor(p, 'lire', id) : null, now = step && !PA.isDone(p, step);
+    const ctx = step ? 'Monde ' + step.world.n + ' · étape ' + step.n + ' sur ' + step.world.steps.length + ' · ' + L.min + ' min' : 'Leçon · ' + L.min + ' min';
     A.shell('parcours', A.header() +
-      '<div class="row"><a href="#parcours" class="icon-btn" aria-label="Retour au parcours">' + A.ICON.back + '</a><span class="eyebrow">Solfège · leçon ' + (i + 1) + ' sur ' + LESSONS.length + ' · ' + L.min + ' min</span></div>' +
+      '<div class="row"><a href="#parcours" class="icon-btn" aria-label="Retour au parcours">' + A.ICON.back + '</a><span class="eyebrow">' + ctx + '</span></div>' +
       '<article class="lesson"><h1 class="h1">' + A.esc(L.title) + '</h1>' + blocks +
-      '<div class="lesson-end"><div class="tip" style="color:var(--text)">' + M.svg(p.mascot, 'happy') + '<div><div class="label">Prêt pour le quiz ?</div><div class="help">' + L.quiz.length + ' questions' + (done ? ' · dernier score ' + done.score + '/' + done.total : '') + '</div></div></div>' +
-      '<a class="btn" href="#quiz-' + L.id + '">Faire le quiz</a></div></article>');
+      '<div class="lesson-end"><div class="tip" style="color:var(--text)">' + M.svg(p.mascot, 'happy') + '<div><div class="label">' + (now ? 'C\'est lu ?' : 'Prêt pour le quiz ?') + '</div><div class="help">' + (now ? 'Passe à l\'étape suivante du parcours.' : L.quiz.length + ' questions' + (done ? ' · dernier score ' + done.score + '/' + done.total : '')) + '</div></div></div>' +
+      (now ? '<button class="btn" id="lread">J\'ai lu, étape suivante ' + A.ICON.play + '</button>' : '<a class="btn" href="#quiz-' + L.id + '">Faire le quiz</a>') + '</div></article>');
+    const rb = document.getElementById('lread');
+    if (rb) rb.onclick = () => { const res = PA.report('lire', id, {}); location.hash = res && res.next ? PA.href(res.next) : '#parcours'; };
   }
 
   /* ---------- Écran : quiz ---------- */
@@ -187,40 +242,17 @@
       A.save();
       const great = score >= total * 0.75;
       const next = L ? LESSONS[LESSONS.indexOf(L) + 1] : null;
+      const res = window.Path ? window.Path.report('quiz', id, { score, total }) : null;
       box.innerHTML = '<div class="card q-card" style="align-items:center;text-align:center"><div class="q-res-mascot" style="color:var(--text)">' + M.svg(p.mascot, great ? 'happy' : 'idle') + '</div>' +
         '<div class="h1" style="font-size:48px">' + score + '/' + total + '</div><div class="help">' + (great ? (kid ? 'Champion !' : 'Très bien, c\'est acquis.') : 'Relis la leçon et réessaie : ça viendra vite.') + (coins ? ' +' + coins + ' pièces' : '') + '</div>' +
         '<div class="row" style="flex-wrap:wrap;justify-content:center;margin-top:12px"><button class="btn ghost" id="qagain">Recommencer</button>' +
-        (next ? '<a class="btn" href="#cours-' + next.id + '">Leçon suivante</a>' : '<a class="btn" href="#parcours">Parcours</a>') + '</div></div>';
+        (res ? '' : next ? '<a class="btn" href="#cours-' + next.id + '">Leçon suivante</a>' : '<a class="btn" href="#parcours">Parcours</a>') + '</div>' + (res ? '<div class="q-next">' + window.Path.resultHtml(res) + '</div>' : '') + '</div>';
       document.getElementById('qagain').onclick = () => A.route();
     }
     show();
   }
 
-  /* ---------- Écran : parcours ---------- */
-  function Path() {
-    const p = A.prof(), kid = A.isKid(), les = p.lessons || {}, songs = p.songs || {};
-    const doneN = LESSONS.filter((l) => les[l.id] && les[l.id].score >= les[l.id].total * 0.75).length;
-    const lessonRow = (l, i) => {
-      const r = les[l.id], ok = r && r.score >= r.total * 0.75;
-      return '<a class="path-item" href="#cours-' + l.id + '"><span class="path-num' + (ok ? ' ok' : '') + '">' + (ok ? '✓' : i + 1) + '</span><span class="path-txt"><span class="label">' + A.esc(l.title) + '</span><span class="help">' + l.min + ' min · ' + (r ? 'quiz ' + r.score + '/' + r.total : 'à lire') + '</span></span></a>';
-    };
-    const drill = (id, t, d) => '<a class="drill" href="#quiz-' + id + '"><span class="label">' + t + '</span><span class="help">' + d + '</span></a>';
-    const songRow = (s) => { const b = songs[s.id]; return '<a class="path-item" href="#jeu-' + s.id + '"><span class="path-num' + (b && b.stars ? ' ok' : '') + '">' + (b ? b.stars + '★' : '♪') + '</span><span class="path-txt"><span class="label">' + A.esc(s.title) + '</span><span class="help">Niveau ' + s.level + ' · ' + A.esc(s.by) + '</span></span></a>'; };
-    A.shell('parcours', A.header() + '<h1 class="h1">' + (kid ? 'Ta tournée' : 'Parcours') + '</h1>' +
-      '<div class="cols"><div class="stack">' +
-        '<div class="between"><div class="h2">Solfège</div><span class="chip">Sans piano</span></div>' +
-        '<div class="progress"><i style="width:' + Math.round(doneN / LESSONS.length * 100) + '%"></i></div><div class="help">' + doneN + ' leçon' + (doneN > 1 ? 's' : '') + ' acquise' + (doneN > 1 ? 's' : '') + ' sur ' + LESSONS.length + '</div>' +
-        '<div class="path">' + LESSONS.map(lessonRow).join('') + '</div>' +
-      '</div><div class="stack">' +
-        '<div class="h2">Entraînements express</div><div class="drills">' +
-          drill('lecture-sol', 'Lis les notes', 'Clé de sol · 10 notes') + drill('lecture-fa', 'Lis les notes', 'Clé de fa · 10 notes') + drill('rythme', 'Les durées', 'Rondes, blanches, noires…') +
-        '</div>' +
-        '<div class="h2">Au piano</div><div class="path">' + MU.SONGS.slice().sort((a, b) => a.level - b.level).map(songRow).join('') + '</div>' +
-      '</div></div>');
-  }
-
   A.screens.cours = Lesson;
   A.screens.quiz = Quiz;
-  A.screens.parcours = Path;
   window.Learn = { LESSONS, DRILLS };
 })();
