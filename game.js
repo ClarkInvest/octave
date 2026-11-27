@@ -126,7 +126,8 @@
       ctx2.fillStyle = COL.accent; ctx2.fillRect(0, hitY, W, 3);
       const cur = run && run.kind === 'play' && st.mode === 'tranquille' ? run.gi : -1;
       song.notes.forEach((n) => {
-        const yBottom = hitY - (n.t - beat) * ppb, h = Math.max(14, n.d * ppb - 6), y = yBottom - h;
+        const sit = cur >= 0 && !n.hit && n.t <= beat && groups[cur] && groups[cur].t === n.t; /* note attendue : posée sur la ligne */
+        const yBottom = sit ? hitY : hitY - (n.t - beat) * ppb, h = Math.max(14, n.d * ppb - 6), y = yBottom - h;
         if (yBottom < -10 || y > H) return;
         const g = geo[n.m], x = g.x / 100 * W + (g.black ? 1 : 4), w = g.w / 100 * W - (g.black ? 2 : 8);
         let fill = kid ? COL.alt : COL.surf2, ink = kid ? '#FFFFFF' : COL.text, alpha = 1;
@@ -214,10 +215,17 @@
       const gi = groups.findIndex((g) => g.t >= run.beat); drawStaff(gi < 0 ? groups.length : gi);
       if (run.beat > song.length + 1) { stop(); document.getElementById('listen').textContent = 'Écouter'; ready(); }
     }
+    /* tolérance : la note peut dépasser un peu la ligne avant que la musique s'arrête,
+       pour qu'une note jouée pile à temps (ou captée avec le léger retard du micro) ne casse pas le tempo */
+    function grace(gi) {
+      const g = groups[gi], nx = groups[gi + 1];
+      const sec = DB.input.source === 'micro' ? 0.35 : 0.2;
+      return Math.min(sec / spb(), 0.5, nx ? (nx.t - g.t) * 0.5 : 0.5);
+    }
     function stepWait(db) {
       const g = groups[run.gi];
       if (!g) { if ((run.beat += db) > song.length + 0.5) finish(); return; }
-      run.beat = Math.min(g.t, run.beat + db);
+      run.beat = Math.min(g.t + grace(run.gi), run.beat + db);
       const near = g.t - run.beat < 0.6;
       lights(near ? new Set(g.notes.map((n) => n.m)) : new Set());
       for (const m in keyEls) keyEls[m].classList.toggle('target', near && g.notes.some((n) => n.m === +m));
@@ -308,17 +316,21 @@
   /* ---------- Écran : morceaux ---------- */
   function Songs() {
     const p = A.prof(), kid = A.isKid(), mine = p.songs || {};
-    const kinds = { exercice: 'Exercice', chanson: 'Chanson', classique: 'Classique', groove: 'Groove' };
+    const perso = MU.SONGS.filter((s) => s.perso).reverse();
+    const kinds = { exercice: 'Exercice', chanson: 'Chanson', classique: 'Classique', groove: 'Groove', perso: 'Perso' };
     const card = (s) => {
       const b = mine[s.id];
-      return '<a class="song" href="#jeu-' + s.id + '"><div class="song-art" data-kind="' + s.kind + '">' + MU.staff({ notes: s.notes.slice(0, 6).map((n, i) => ({ m: n.m, d: n.d, x: 46 + i * 28 })), clef: MU.clefFor(s.notes), width: 220, height: 92, gap: 7, top: 30, clefShown: true, label: 'Début de ' + s.title }) + '</div>' +
+      return '<a class="song' + (s.perso ? ' perso' : '') + '" href="#jeu-' + s.id + '"><div class="song-art" data-kind="' + s.kind + '">' + MU.staff({ notes: s.notes.slice(0, 6).map((n, i) => ({ m: n.m, d: n.d, x: 46 + i * 28 })), clef: MU.clefFor(s.notes), width: 220, height: 92, gap: 7, top: 30, clefShown: true, label: 'Début de ' + s.title }) + '</div>' +
         '<div class="song-body"><div class="between"><span class="eyebrow">' + kinds[s.kind] + ' · Niv. ' + s.level + '</span><span class="song-stars" aria-label="' + (b ? b.stars : 0) + ' étoiles">' + (b ? '★★★'.slice(0, b.stars) + '☆☆☆'.slice(0, 3 - b.stars) : '☆☆☆') + '</span></div>' +
         '<div class="label" style="font-size:16px">' + A.esc(s.title) + '</div><div class="help">' + A.esc(s.by) + '</div></div></a>';
     };
     A.shell('morceaux', A.header() + '<h1 class="h1">Morceaux</h1>' +
       '<div class="help">' + (kid ? 'Choisis un morceau. Commence en Tranquille, puis tente le Défi !' : 'Commencez en mode Tranquille : la musique attend la bonne note. Passez en Défi pour jouer en rythme.') + '</div>' +
-      '<div class="songs">' + MU.SONGS.map(card).join('') + '</div>' +
-      '<div class="soon">Bientôt : l\'import de vos propres fichiers MIDI, et la main gauche.</div>');
+      '<div class="between"><div class="h2">' + (kid ? 'Tes morceaux à toi' : 'Mes morceaux') + '</div><a class="btn small" href="#importer">+ Importer un fichier MIDI</a></div>' +
+      (perso.length ? '<div class="songs">' + perso.map((s) => '<div class="song-wrap">' + card(s) + '<a class="song-edit" href="#importer-' + s.id + '" aria-label="Modifier ' + A.esc(s.title) + '">Modifier</a></div>').join('') + '</div>'
+        : '<div class="soon">' + (kid ? 'Ajoute la musique que tu aimes depuis un fichier MIDI : elle tombera sur l\'écran comme les autres morceaux.' : 'Ajoutez vos propres morceaux depuis un fichier MIDI (.mid) : choisissez les pistes, la main et le passage à travailler. Ils restent sur cet appareil, utilisables sans internet.') + '</div>') +
+      '<div class="h2">' + (kid ? 'Les morceaux d\'Octave' : 'Morceaux d\'Octave') + '</div>' +
+      '<div class="songs">' + MU.SONGS.filter((s) => !s.perso).map(card).join('') + '</div>');
   }
 
   A.screens.jeu = Game;

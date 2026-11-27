@@ -196,7 +196,8 @@ select{font:inherit;min-height:44px;border-radius:14px;border:1px solid var(--li
 .g-bubble{position:absolute;left:96px;top:44px;padding:8px 14px;border-radius:4px 16px 16px 16px;background:var(--text);color:var(--bg);font-weight:700;font-size:14px;pointer-events:none}
 [data-theme="scene"] .g-bubble{left:124px;font-family:var(--font-display);font-weight:400;font-size:24px;background:#fff;color:#0E1630}
 .g-pause{position:absolute;right:14px;bottom:16px;z-index:3}
-.g-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 70%,transparent);z-index:4;padding:16px}
+.g-overlay{position:fixed;inset:0;display:flex;justify-content:center;overflow-y:auto;background:color-mix(in srgb,var(--bg) 78%,transparent);z-index:30;padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+.g-overlay>.g-card{margin:auto}
 .g-overlay[hidden]{display:none}
 .g-card{background:var(--surf);border-radius:24px;padding:24px;max-width:440px;width:100%;text-align:center;display:flex;flex-direction:column;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.12)}
 .g-card .btn{align-self:center}
@@ -330,3 +331,8 @@ select{font:inherit;min-height:44px;border-radius:14px;border:1px solid var(--li
 .pfield{font:inherit;font-size:18px;min-height:52px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);color:var(--text);padding:0 14px}
 .pfield:focus{outline:2px solid var(--accent);outline-offset:1px}
 .btn.danger{color:var(--bad);border-color:var(--bad);align-self:flex-start}
+.pfield.num{width:84px;text-align:center;padding:0 8px}
+.song-wrap{position:relative;display:flex}
+.song-wrap>.song{flex:1}
+.song-edit{position:absolute;right:10px;top:10px;min-height:32px;padding:6px 12px;border-radius:16px;background:var(--surf);color:var(--text);font-size:12px;font-weight:600;text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.song.perso .song-art{background:color-mix(in srgb,var(--accent) 12%,var(--surf2))}

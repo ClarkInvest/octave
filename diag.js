@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const A = window.App, E = window.Engine, MU = window.Music;
-  const BUILD = '0.5';
+  const BUILD = '0.6';
   const LOG_MAX = 200;
   const log = []; /* journal gardé tant que l'appli est ouverte */
 
@@ -43,7 +43,7 @@
       '</div><div class="stack">' +
         '<div class="card"><div class="between"><div class="h2">Journal en direct</div><div class="row" style="gap:6px"><button class="btn small ghost" id="dcopy">Copier</button><button class="btn small ghost" id="dclear">Effacer</button></div></div>' +
           '<div class="help">Tout ce que l\'appli reçoit : touches, pédale, notes entendues par le micro.</div><div class="dlog" id="dlog" aria-live="polite"></div></div>' +
-        '<div class="card"><div class="h2">Sauvegarde de la progression</div><div class="help">Copie ta progression pour la garder ou la mettre sur un autre appareil (téléphone vers tablette par exemple).</div>' +
+        '<div class="card"><div class="h2">Sauvegarde de la progression</div><div class="help">Copie ta progression et tes morceaux importés pour les garder ou les mettre sur un autre appareil (téléphone vers tablette par exemple).</div>' +
           '<div class="row" style="flex-wrap:wrap"><button class="btn small" id="dexport">Copier ma progression</button><button class="btn small ghost" id="dimport">Restaurer…</button></div><div id="dimp" hidden><textarea id="dimptxt" class="dtext" rows="4" placeholder="Colle ici la progression copiée"></textarea><button class="btn small" id="dimpgo">Restaurer cette progression</button></div></div>' +
       '</div></div>');
 
@@ -172,13 +172,14 @@
     A.onLeave(() => { cancelAnimationFrame(raf); if (E.mic.running) E.mic.stop(); E.sound.enabled = true; });
 
     /* ---- sauvegarde ---- */
-    document.getElementById('dexport').onclick = () => copy(JSON.stringify({ octave: BUILD, date: new Date().toISOString(), data: JSON.parse(localStorage.getItem('octave.v1') || '{}') }), 'Progression copiée : colle-la dans une note ou un message');
+    document.getElementById('dexport').onclick = () => copy(JSON.stringify({ octave: BUILD, date: new Date().toISOString(), data: JSON.parse(localStorage.getItem('octave.v1') || '{}'), songs: JSON.parse(localStorage.getItem('octave.songs') || '[]') }), 'Progression copiée (avec tes morceaux) : colle-la dans une note ou un message');
     document.getElementById('dimport').onclick = () => { document.getElementById('dimp').hidden = false; };
     document.getElementById('dimpgo').onclick = () => A.gate(() => {
       try {
         const obj = JSON.parse(document.getElementById('dimptxt').value), data = obj.data || obj;
         if (!data || !Array.isArray(data.profiles)) throw new Error('format');
         localStorage.setItem('octave.v1', JSON.stringify(data));
+        if (Array.isArray(obj.songs)) localStorage.setItem('octave.songs', JSON.stringify(obj.songs));
         A.toast('Progression restaurée'); setTimeout(() => location.reload(), 800);
       } catch (e) { A.toast('Ce texte n\'est pas une progression Octave'); }
     });
