@@ -118,7 +118,7 @@ window.Engine = (function () {
     floor: 0.008, level: 0, freq: 0, cur: null, cents: 0, cand: null, candN: 0, peak: 0, status: 'off',
     /* filtre anti-voix : une note de piano démarre d'un coup (attaque) et garde une hauteur stable ;
        la voix monte plus doucement et sa hauteur glisse ou vibre */
-    voiceFilter: true, onIgnore: null, hist: [], rmsHist: [], attackAt: -1e9, candAt: 0, told: false, clarity: 0,
+    voiceFilter: true, onIgnore: null, hist: [], rmsHist: [], esHist: [], attackAt: -1e9, strikeAt: -1e9, usedStrike: -1e9, psStrike: 0, psn: 0, startAt: -1e9, candAt: 0, told: false, clarity: 0,
     async start() {
       if (!mic.supported) { mic.status = 'unsupported'; return mic.status; }
       const c = audio(); if (!c) { mic.status = 'unsupported'; return mic.status; }
@@ -151,8 +151,17 @@ window.Engine = (function () {
     loop() {
       if (!mic.running) return;
       mic.raf = requestAnimationFrame(mic.loop);
-      if ((mic.frame++ & 1) === 1) return;
       mic.an.getFloatTimeDomainData(mic.buf);
+      /* frappe d'une touche : l'énergie des 10 dernières millisecondes bondit par rapport à juste avant.
+         Calculé à chaque image (léger), pour repérer une même note rejouée vite (do, do dans l'Ode à la joie) */
+      const B = mic.buf, nS = Math.min(B.length, 512); let es = 0;
+      for (let i = B.length - nS; i < B.length; i++) es += B[i] * B[i];
+      es = Math.sqrt(es / nS);
+      const tNow = performance.now();
+      const prevMin = mic.esHist.length >= 3 ? Math.min.apply(null, mic.esHist.slice(-5, -1)) : 0;
+      mic.esHist.push(es); if (mic.esHist.length > 8) mic.esHist.shift();
+      if (es > mic.floor * 1.5 && es > Math.max(prevMin, mic.floor * 0.4) * 1.5 && tNow - mic.strikeAt > 90) { mic.strikeAt = tNow; mic.attackAt = tNow; }
+      if ((mic.frame++ & 1) === 1) return;
       let rms = 0; for (let i = 0; i < mic.buf.length; i++) rms += mic.buf[i] * mic.buf[i];
       rms = Math.sqrt(rms / mic.buf.length); mic.level = rms;
       let note = null, exact = 0;
@@ -174,11 +183,16 @@ window.Engine = (function () {
       if (note !== null && note === mic.cand) { mic.candN++; mic.hist.push(exact); if (mic.hist.length > 8) mic.hist.shift(); }
       else { mic.cand = note; mic.candN = note === null ? 0 : 1; mic.hist = note === null ? [] : [exact]; mic.candAt = now; mic.told = false; }
       if (note === null) { if (mic.cur !== null) { emit('off', mic.cur, 0, 'micro'); mic.cur = null; } return; }
+      /* même touche frappée de nouveau : une frappe neuve, après le début de la note en cours */
+      /* … confirmée par deux analyses de hauteur faites après la frappe (sinon c'est le début de la note suivante) */
+      if (mic.strikeAt !== mic.psStrike) { mic.psStrike = mic.strikeAt; mic.psn = 0; }
+      if (note === mic.cur && now - mic.strikeAt >= 45 && now - mic.strikeAt < 300) mic.psn++;
+      const restrike = mic.strikeAt > mic.usedStrike && mic.strikeAt > mic.startAt + 60 && mic.psn >= 2;
+      if (note === mic.cur) { if (restrike || (onset && mic.candN >= 2)) start(note, rms); return; }
       if (!mic.voiceFilter) {
-        if (mic.candN >= 2 && (note !== mic.cur || onset)) start(note, rms);
+        if (mic.candN >= 2) start(note, rms);
         return;
       }
-      if (note === mic.cur) { if (onset && mic.candN >= 2) start(note, rms); return; } /* même touche frappée de nouveau */
       /* l'écran en cours peut dire quelles notes il attend : celles-là sont acceptées vite,
          les autres doivent vraiment ressembler à une touche de piano avant de compter comme une erreur */
       const expected = typeof api.expect === 'function' && api.expect(note);
@@ -199,7 +213,7 @@ window.Engine = (function () {
       if (!mic.told && mic.onIgnore) { mic.told = true; mic.onIgnore(note, why); }
       function start(m, r) {
         if (mic.cur !== null) emit('off', mic.cur, 0, 'micro');
-        mic.cur = m; emit('on', m, Math.min(127, Math.round(40 + r * 900)), 'micro');
+        mic.cur = m; mic.startAt = now; mic.usedStrike = mic.strikeAt; emit('on', m, Math.min(127, Math.round(40 + r * 900)), 'micro');
       }
     }
   };
