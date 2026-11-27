@@ -151,7 +151,7 @@ select{font:inherit;min-height:44px;border-radius:14px;border:1px solid var(--li
 
 /* ===== Réglages ===== */
 .theme-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-@media (min-width:900px){.theme-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:900px){.theme-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:420px}}
 .theme-card{padding:10px;border-radius:20px;border:2px solid transparent;background:var(--surf);text-align:left;display:flex;flex-direction:column;gap:8px}
 .theme-card[aria-pressed="true"]{border-color:var(--accent)}
 .theme-card .pv{height:60px;border-radius:12px;position:relative;overflow:hidden;border:1px solid var(--line)}
@@ -351,3 +351,63 @@ select{font:inherit;min-height:44px;border-radius:14px;border:1px solid var(--li
 .g-bars .icon-btn{width:40px;height:40px;background:var(--surf2);font-size:18px}
 .g-bars b{min-width:26px;text-align:center;font-family:var(--font-display);font-size:20px}
 .g-card .seg{align-self:stretch}
+button.path-item{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.path>button.path-item:last-child{border-bottom:0}
+/* ===== v0.8 : décompte, lecture à voix haute, paysage ===== */
+.countdown{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:color-mix(in srgb,var(--bg) 62%,transparent);pointer-events:none}
+.cd-num{font-family:var(--font-display);font-weight:700;font-size:150px;line-height:1;color:var(--accent-text);animation:cdpop .9s ease both}
+.cd-num.cd-go{font-size:64px}
+.cd-txt{font-size:18px;font-weight:600;color:var(--text)}
+@keyframes cdpop{0%{transform:scale(.4);opacity:0}25%{transform:scale(1.08);opacity:1}100%{transform:scale(1);opacity:.85}}
+@media (prefers-reduced-motion:reduce){.cd-num{animation:none}.bounce,.shake,.tap-pad.pulse{animation:none}}
+.say{display:inline-flex;align-items:center;gap:6px;min-height:40px;min-width:40px;padding:0 10px;border-radius:20px;border:1.5px solid var(--line);background:var(--surf);color:var(--accent-text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;vertical-align:middle;justify-content:center}
+.say:active{transform:scale(.96)}
+.say-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+[data-mode="enfant"] .say{min-height:48px;min-width:48px;border-color:var(--accent)}
+.g-ctrl #grot{background:var(--surf)}
+.stuck{margin-top:12px;padding:12px;border-radius:16px;background:color-mix(in srgb,var(--accent) 12%,transparent);display:flex;flex-direction:column;gap:8px;align-items:center}
+
+/* téléphone tenu à l'horizontale : tout tient sur une hauteur réduite */
+@media (orientation:landscape) and (max-height:560px){
+  .nav{gap:0;padding:6px 6px;width:88px}
+  .nav .brand{display:none}
+  .nav a{min-height:44px;font-size:10px;gap:2px}
+  .nav svg{width:20px;height:20px}
+  .main{padding:12px 18px 16px;gap:12px}
+  .h1{font-size:30px}
+  [data-theme="scene"] .h1{font-size:40px}
+  .main-game{padding:6px 10px;height:100vh}
+  .game{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);grid-template-rows:auto minmax(0,1fr) auto;gap:6px;height:100%;min-height:0}
+  .g-top{grid-column:1;grid-row:1;gap:6px;align-content:flex-start}
+  .g-top .eyebrow,.g-work{display:none}
+  .g-title{min-width:0;flex:1}
+  .g-title .h2{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  [data-theme="scene"] .g-title .h2{font-size:22px}
+  .g-ctrl{gap:6px}
+  .g-ctrl .seg button{min-height:36px;padding:0 10px}
+  .g-ctrl .btn.small{min-height:36px;padding:0 12px}
+  .g-ctrl .icon-btn,.g-top>.icon-btn{width:38px;height:38px}
+  .g-speed .icon-btn{width:32px;height:32px}
+  .g-staff,.g-staff.grand{grid-column:2;grid-row:1;height:132px;padding:2px 10px}
+  .g-area{grid-column:1/-1;grid-row:2;min-height:90px}
+  .g-kbd{grid-column:1/-1;grid-row:3;padding:4px 6px 6px}
+  .g-kbd .kbd{height:92px}
+  .g-mascot{width:52px;height:52px;top:26px}
+  [data-theme="scene"] .g-mascot{width:64px;height:64px}
+  .g-bubble{left:70px;top:30px}
+  .g-stats b{font-size:20px}
+  [data-theme="scene"] .g-stats b{font-size:30px}
+  .kid-hero{min-height:170px}
+  .kid-hero .big{font-size:32px}
+  .kbd-wrap .kbd{height:120px}
+  /* cartes de départ et de résultat compactes : le bouton pour jouer vient tout de suite */
+  .g-card{padding:14px 18px}
+  .g-card>*{order:2}
+  .g-card>.eyebrow,.g-card>.say-row{order:0}
+  .g-card>#ggo{order:1;margin-top:8px !important}
+  .g-card>.g-workbox{order:3}
+  .g-res-mascot{width:60px;height:60px}
+  .g-card .h1{font-size:34px !important}
+  .g-stars{font-size:26px}
+  .cd-num{font-size:110px}
+}

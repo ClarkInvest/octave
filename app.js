@@ -1,7 +1,7 @@
 /* Octave — application familiale d'apprentissage du piano (socle v0.1) */
 (function () {
   'use strict';
-  const VERSION = '0.7.2';
+  const VERSION = '0.8';
   const E = window.Engine, M = window.Mascots;
   const app = document.getElementById('app');
   const KEY = 'octave.v1';
@@ -13,7 +13,7 @@
       { id: 'leonard', name: 'Léonard', mode: 'enfant', theme: 'peche', mascot: 'volt', coins: 0, best: null }
     ],
     current: null,
-    input: { source: 'midi', outId: null, channel: 1, lights: true, echo: false, volume: 0.6, voiceFilter: true }
+    input: { source: 'midi', outId: null, channel: 1, lights: true, echo: false, volume: 0.6, voiceFilter: true, countdown: 3, orient: 'auto' }
   };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   let DB = load();
@@ -24,7 +24,15 @@
     } catch (e) { /* stockage indisponible */ }
     return clone(DEFAULT);
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { /* ignoré */ } }
+  let saveWarned = false;
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(DB)); saveWarned = false; }
+    catch (e) { if (!saveWarned) { saveWarned = true; setTimeout(() => toast('Attention : la progression n\'a pas pu être enregistrée (mémoire du téléphone pleine ?)'), 50); } }
+  }
+  /* demande à Chrome de ne pas effacer les données d'Octave quand le téléphone manque de place */
+  function protectStorage() {
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then((ok) => { if (!ok) navigator.storage.persist(); }).catch(() => {}); } catch (e) { /* ignoré */ }
+  }
   const prof = () => DB.profiles.find((p) => p.id === DB.current) || null;
   const isKid = () => { const p = prof(); return !!p && p.mode === 'enfant'; };
 
@@ -54,6 +62,7 @@
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
     back: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
     play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>',
+    rotate: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 9a9 9 0 0 1 4-5M21 15a9 9 0 0 1-4 5"/><path d="M3 4v5h5M21 20v-5h-5"/></svg>',
     flame: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-text)" stroke-width="2" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-4 2-5 0 2 1 3 2 3 0-3-1-6 1-9z"/></svg>'
   };
 
@@ -72,7 +81,7 @@
   const SCREENS = {};
   let param = '', lastHash = '', prevHash = '';
   function route() {
-    cleanup.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } }); cleanup = [];
+    cleanup.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } }); cleanup = []; hush();
     const raw = (location.hash || '').replace(/^#\/?/, '');
     if (raw !== lastHash) { prevHash = lastHash; lastHash = raw; }
     let name = raw.split('-')[0]; param = raw.slice(name.length + 1);
@@ -119,7 +128,7 @@
         '<span class="name">' + esc(p.name) + '</span><span class="meta">Mode ' + (p.mode === 'enfant' ? 'Enfant' : 'Adulte') + ' · ' + esc(M.list[p.mascot].name) + '</span></button>').join('') +
         '<a class="who-card who-add" href="#joueur-nouveau"><span class="who-plus" aria-hidden="true">+</span><span class="name">Ajouter</span><span class="meta">Un nouveau joueur</span></a>' +
       '</div><div class="help">Octave · version ' + VERSION + '</div></div>';
-    app.querySelectorAll('.who-card[data-id]').forEach((b) => b.addEventListener('click', () => { DB.current = b.dataset.id; save(); E.audio(); go('accueil'); }));
+    app.querySelectorAll('.who-card[data-id]').forEach((b) => b.addEventListener('click', () => { DB.current = b.dataset.id; save(); E.audio(); protectStorage(); go('accueil'); }));
   }
 
   /* ---------- Écran : accueil ---------- */
@@ -171,7 +180,7 @@
     const strip = w.steps.slice(from, from + 5);
     shell('accueil',
       header('<span class="chip"><span class="coin"></span>' + p.coins + '</span>') +
-      '<h1 class="h1">Ce soir,<br>tu montes <span style="color:var(--accent)">sur scène</span></h1>' +
+      '<div class="say-row"><h1 class="h1" style="flex:1">Ce soir,<br>tu montes <span style="color:var(--accent)">sur scène</span></h1>' + sayBtn(cur ? 'Ta prochaine étape : ' + PA.stepTitle(cur) + '. Appuie sur C\'est parti !' : 'Bravo, tu as fini la tournée !', '') + '</div>' +
       '<div class="cols"><div class="stack">' +
         (cur ? '<a href="' + PA.href(cur) + '" class="kid-hero"><span class="mascot">' + M.svg(p.mascot, 'happy') + '</span>' +
           '<span style="font-size:12px;font-weight:700;letter-spacing:1.4px">PROCHAINE ÉTAPE · ' + cur.n + ' / ' + w.steps.length + '</span><span class="big">' + esc(PA.stepTitle(cur)) + '</span>' +
@@ -190,15 +199,6 @@
       '</div></div>');
   }
 
-  /* ---------- Écrans à venir ---------- */
-  function Soon(which) {
-    return function () {
-      const p = prof();
-      const txt = which === 'parcours' ? { t: isKid() ? 'Ta tournée' : 'Parcours', d: 'Les leçons, niveau par niveau, arrivent à l\'étape 3.' } : { t: 'Morceaux', d: 'L\'import de vos fichiers MIDI et la bibliothèque arrivent à l\'étape 4.' };
-      shell(which, header() + '<h1 class="h1">' + txt.t + '</h1><div class="card" style="flex-direction:row;align-items:center;gap:18px"><div style="width:96px;height:96px;flex-shrink:0;color:var(--text)">' + M.svg(p.mascot) + '</div><div><div class="h2">Bientôt ici</div><div class="help" style="margin-top:6px">' + txt.d + '</div></div></div>');
-    };
-  }
-
   /* ---------- Verrou parent (en mode Enfant) ---------- */
   function gate(ok) {
     if (!isKid()) { ok(); return; }
@@ -214,6 +214,70 @@
     inp.onkeydown = (e) => { if (e.key === 'Enter') check(); };
     onLeave(close);
   }
+
+  /* ---------- Lecture à voix haute (synthèse vocale du téléphone, en français) ---------- */
+  const canSay = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
+  let frVoice = null;
+  function pickVoice() { if (!canSay) return; const vs = speechSynthesis.getVoices(); frVoice = vs.find((v) => /^fr(-|_)FR/i.test(v.lang)) || vs.find((v) => /^fr/i.test(v.lang)) || null; }
+  if (canSay) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+  const plain = (h) => String(h).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&#39;/g, '\'').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/♯/g, ' dièse').replace(/♭/g, ' bémol').replace(/\s+/g, ' ').trim();
+  function say(text) {
+    if (!canSay || !text) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(plain(text)); u.lang = 'fr-FR'; if (frVoice) u.voice = frVoice; u.rate = isKid() ? 0.92 : 1; u.volume = Math.max(0.4, DB.input.volume || 0.6);
+      speechSynthesis.speak(u);
+    } catch (e) { /* ignoré */ }
+  }
+  const hush = () => { try { if (canSay) speechSynthesis.cancel(); } catch (e) { /* ignoré */ } };
+  /* lecture automatique : activée par défaut pour les profils enfant */
+  const sayAuto = () => { const p = prof(); return !!p && (p.sayAuto !== undefined ? p.sayAuto : p.mode === 'enfant'); };
+  const sayBtn = (text, label) => canSay ? '<button class="say" type="button" data-say="' + esc(plain(text)) + '" aria-label="' + (label || 'Écouter') + '">' + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>' + (label ? '<span>' + label + '</span>' : '') + '</button>' : '';
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-say]'); if (b) { e.preventDefault(); say(b.dataset.say); } });
+
+  /* ---------- Décompte avant de jouer : le temps de poser les mains ---------- */
+  function countdown(done, label) {
+    const n = DB.input.countdown === 0 ? 0 : (DB.input.countdown || 3);
+    if (!n) { done(); return; }
+    const d = document.createElement('div'); d.className = 'countdown'; d.setAttribute('role', 'status');
+    document.body.appendChild(d);
+    let k = n, t = 0, over = false;
+    const tick = (strong) => { const c = E.audio(); if (!c) return; const t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.frequency.value = strong ? 1320 : 880; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.1, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12); o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + 0.14); };
+    const end = () => { if (over) return; over = true; clearTimeout(t); d.remove(); };
+    const step = () => {
+      if (over) return;
+      if (k === 0) { d.innerHTML = '<div class="cd-num cd-go">' + (isKid() ? 'C\'est parti !' : 'À vous !') + '</div>'; tick(true); t = setTimeout(() => { end(); done(); }, 450); return; }
+      d.innerHTML = '<div class="cd-num" aria-label="' + k + '">' + k + '</div><div class="cd-txt">' + esc(label || (isKid() ? 'Place tes mains sur le clavier' : 'Placez vos mains')) + '</div>';
+      tick(false); k--; t = setTimeout(step, 1000);
+    };
+    step();
+    onLeave(end);
+  }
+
+  /* ---------- Orientation de l'écran (portrait / paysage) ---------- */
+  let fsByUs = false;
+  async function setOrient(mode, quiet) {
+    const so = screen.orientation;
+    if (mode === 'auto') {
+      try { if (so && so.unlock) so.unlock(); } catch (e) { /* ignoré */ }
+      if (fsByUs && document.fullscreenElement) { try { await document.exitFullscreen(); } catch (e) { /* ignoré */ } }
+      fsByUs = false; return true;
+    }
+    const want = mode === 'paysage' ? 'landscape' : 'portrait';
+    if (!so || !so.lock) { if (!quiet) toast('Cet appareil ne permet pas de tourner l\'écran depuis l\'appli : tournez-le à la main.'); return false; }
+    try { await so.lock(want); return true; } catch (e) { /* le navigateur demande souvent le plein écran d'abord */ }
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); fsByUs = true; }
+      await so.lock(want); return true;
+    } catch (e) { if (!quiet) toast('Impossible de tourner l\'écran ici : tournez le téléphone (rotation automatique activée).'); return false; }
+  }
+  const isLandscape = () => (screen.orientation && screen.orientation.type ? screen.orientation.type.indexOf('landscape') === 0 : window.innerWidth > window.innerHeight);
+  function toggleOrient() { const mode = isLandscape() ? 'portrait' : 'paysage'; DB.input.orient = mode; save(); setOrient(mode); }
+  /* l'orientation choisie est réappliquée au premier toucher (le navigateur l'exige) */
+  document.addEventListener('click', () => {
+    const o = DB.input.orient; if (o !== 'portrait' && o !== 'paysage') return;
+    if ((o === 'paysage') !== isLandscape()) setOrient(o, true);
+  }, true);
 
   /* ---------- Entrée active pour jouer (micro ou câble) ---------- */
   async function startInput() {
@@ -286,7 +350,7 @@
   /* ---------- Écran : réglages ---------- */
   function Settings() {
     const p = prof();
-    const themes = [['peche', 'Pêche', '#FBF2EC', '#26191A', '#6346CC', true], ['anthracite', 'Anthracite', '#17181C', '#EDEDE8', '#C8F04A', true], ['t3', 'À venir', '#EEEEEE', '#999999', '#CCCCCC', false], ['t4', 'À venir', '#EEEEEE', '#999999', '#CCCCCC', false]];
+    const themes = [['peche', 'Pêche', '#FBF2EC', '#26191A', '#6346CC', true], ['anthracite', 'Anthracite', '#17181C', '#EDEDE8', '#C8F04A', true]];
     const mascots = M.forMode(p.mode);
     shell('reglages', header() +
       '<h1 class="h1">Réglages</h1>' +
@@ -300,6 +364,11 @@
           '<button class="pal" data-pal="' + id + '" aria-pressed="' + (p.mascot === id) + '" style="color:var(--text)">' + M.svg(id) + esc(M.list[id].name) + '</button>').join('') + '</div>' +
       '</div><div class="stack">' +
         '<div class="eyebrow">Son</div><div class="list"><div class="item"><label class="label" for="vol">Volume de l\'appli</label><input id="vol" type="range" min="0" max="1" step="0.05" value="' + DB.input.volume + '" style="width:160px;accent-color:var(--accent)"></div></div>' +
+        '<div class="eyebrow">Jeu</div><div class="list">' +
+          '<div class="item" style="flex-wrap:wrap"><span class="label">Décompte avant de jouer</span><div class="seg" role="group" aria-label="Décompte"><button data-cd="0" aria-pressed="' + (DB.input.countdown === 0) + '">Aucun</button><button data-cd="3" aria-pressed="' + ((DB.input.countdown || 3) === 3 && DB.input.countdown !== 0) + '">3 s</button><button data-cd="5" aria-pressed="' + (DB.input.countdown === 5) + '">5 s</button></div></div>' +
+          '<div class="item" style="flex-wrap:wrap"><span class="label">Orientation de l\'écran</span><div class="seg" role="group" aria-label="Orientation"><button data-or="auto" aria-pressed="' + ((DB.input.orient || 'auto') === 'auto') + '">Auto</button><button data-or="portrait" aria-pressed="' + (DB.input.orient === 'portrait') + '">Portrait</button><button data-or="paysage" aria-pressed="' + (DB.input.orient === 'paysage') + '">Paysage</button></div></div>' +
+          '<div class="item"><span class="label">Lire les consignes à voix haute</span><button class="switch" role="switch" id="sayauto" aria-label="Lire les consignes à voix haute" aria-checked="' + sayAuto() + '"></button></div>' +
+        '</div>' +
         '<div class="eyebrow">Joueurs</div><div class="list"><div class="item"><span class="label">Prénom, mode et mascotte de ' + esc(p.name) + '</span><a href="#joueur-' + p.id + '" class="btn small ghost">Modifier</a></div>' +
         '<div class="item"><span class="label">Changer de joueur</span><a href="#qui" class="btn small ghost">Qui joue ?</a></div>' +
         '<div class="item"><span class="label">Ajouter un joueur</span><a href="#joueur-nouveau" class="btn small ghost">Ajouter</a></div>' +
@@ -314,6 +383,9 @@
     }));
     app.querySelectorAll('[data-theme-id]').forEach((b) => b.onclick = () => { if (b.disabled) return; p.theme = b.dataset.themeId; save(); route(); });
     app.querySelectorAll('[data-pal]').forEach((b) => b.onclick = () => { p.mascot = b.dataset.pal; save(); route(); toast(M.list[p.mascot].name + ' t\'accompagne !'); });
+    app.querySelectorAll('[data-cd]').forEach((b) => b.onclick = () => { DB.input.countdown = +b.dataset.cd; save(); route(); });
+    app.querySelectorAll('[data-or]').forEach((b) => b.onclick = () => { DB.input.orient = b.dataset.or; save(); setOrient(DB.input.orient); route(); });
+    const sa = document.getElementById('sayauto'); sa.onclick = () => { p.sayAuto = !sayAuto(); save(); sa.setAttribute('aria-checked', p.sayAuto); if (p.sayAuto) say('Je lirai les consignes à voix haute.'); };
     const vol = document.getElementById('vol');
     vol.oninput = () => { DB.input.volume = +vol.value; E.sound.volume(DB.input.volume); };
     vol.onchange = () => { save(); E.sound.play(67, 90); setTimeout(() => E.sound.stop(67), 300); };
@@ -333,7 +405,7 @@
     shell('clavier', header('<span class="chip"><span class="dot' + (inputOn() ? ' on' : '') + '" id="stdot"></span><span id="stlabel">' + esc(inputLabel()) + '</span></span>') +
       '<h1 class="h1">' + (kid ? 'Ton clavier' : 'Mon clavier') + '</h1>' +
       '<div class="seg" role="group" aria-label="Source du son"><button data-src="midi" aria-pressed="' + (src === 'midi') + '">Câble MIDI</button><button data-src="micro" aria-pressed="' + (src === 'micro') + '">Micro</button><button data-src="ecran" aria-pressed="' + (src === 'ecran') + '">Écran</button></div>' +
-      '<div class="cols"><div class="stack"><div class="card" id="srcpanel"></div>' +
+      '<div class="cols"><div class="stack"><div class="card" id="srcpanel"></div><div class="card line" id="latcard"></div>' +
         '<div class="card"><div class="readout"><div class="note" id="rnote">—</div><div><div class="label" id="rintl">Joue une note</div><div class="sub" id="rsub">' + (src === 'ecran' ? 'Touche le clavier ci-dessous' : 'Elle s\'affichera ici') + '</div></div></div></div>' +
       '</div><div class="stack"><div class="card" id="challenge"></div></div></div>' +
       '<div class="kbd-wrap"><div class="kbd' + (src === 'ecran' ? ' big' : '') + '" id="kbd" aria-label="Clavier de 61 touches"></div></div>');
@@ -449,6 +521,17 @@
       E.sound.enabled = true;
       panel.innerHTML = '<div class="h2">Clavier à l\'écran</div><div class="help">Pour s\'entraîner sans instrument : touchez les touches ci-dessous, plusieurs doigts à la fois si vous voulez. Faites glisser le clavier pour voir les autres octaves.</div>';
     }
+    /* délai compensé en mode Défi (réglé tout seul au fil des parties) */
+    function latCard() {
+      const box = document.getElementById('latcard'); if (!box) return;
+      const L0 = { micro: 130, midi: 20, ecran: 40 }, l = (DB.input.lat || {})[src];
+      const ms = typeof l === 'number' ? Math.round(l * 1000) : L0[src];
+      box.innerHTML = '<div class="between"><div><div class="label">Délai compensé en mode Défi : ' + ms + ' ms</div><div class="help">' +
+        (src === 'micro' ? 'Le micro entend chaque note avec un petit retard. ' : '') + 'Octave l\'ajuste tout seul à la fin de chaque partie en Défi. Si vous changez de place ou d\'appareil et que le rythme semble faux, réinitialisez-le.</div></div>' +
+        (typeof l === 'number' ? '<button class="btn small ghost" id="latreset">Réinitialiser</button>' : '') + '</div>';
+      const b = document.getElementById('latreset'); if (b) b.onclick = () => { delete DB.input.lat[src]; save(); latCard(); toast('Délai remis à sa valeur de départ'); };
+    }
+    latCard();
     if (src === 'midi') { if (E.midi.status !== 'off' && E.midi.status !== 'unsupported') E.midi.refresh(); midiPanel(); }
     else if (src === 'micro') micPanel(); else ecranPanel();
     app.querySelectorAll('[data-src]').forEach((b) => b.onclick = () => { DB.input.source = b.dataset.src; save(); route(); });
@@ -463,14 +546,14 @@
         if (!c.on && c.list.length === 0) {
           box.innerHTML = '<div class="eyebrow">' + (kid ? 'Défi · échauffement' : 'Test rapide') + '</div><div class="challenge">' + mascot +
             '<div><div class="h2">Joue la note demandée</div><div class="help" style="margin-top:4px">10 notes entre Do3 et Do4. ' + (p.best ? 'Record : ' + p.best.score + '/10 en ' + p.best.time + ' s.' : 'Premier essai !') + '</div></div></div><button class="btn" id="cgo">' + ICON.play + (kid ? ' C\'est parti' : ' Commencer') + '</button>';
-          document.getElementById('cgo').onclick = () => c.start();
+          document.getElementById('cgo').onclick = () => countdown(() => c.start());
         } else if (c.on) {
           box.innerHTML = '<div class="between"><div class="eyebrow">Note ' + (c.i + 1) + ' sur 10</div><div class="pips">' + c.list.map((_, k) => '<i class="' + (k < c.score ? 'ok' : '') + '"></i>').join('') + '</div></div>' +
             '<div class="challenge">' + mascot + '<div><div class="help">Joue</div><div class="ask">' + E.name(c.target) + '</div><div class="help">' + E.intl(c.target) + '</div></div></div>';
         } else {
           const time = Math.round((performance.now() - c.t0) / 1000);
           box.innerHTML = '<div class="eyebrow">' + (kid ? 'Bravo !' : 'Terminé') + '</div><div class="challenge">' + mascot + '<div><div class="ask">' + c.score + '/10</div><div class="help">en ' + time + ' s · ' + c.misses + ' erreur' + (c.misses > 1 ? 's' : '') + (kid ? ' · +' + c.score * 5 + ' pièces' : '') + '</div></div></div><button class="btn" id="cgo">Rejouer</button>';
-          document.getElementById('cgo').onclick = () => c.start();
+          document.getElementById('cgo').onclick = () => countdown(() => c.start());
         }
       },
       start() {
@@ -511,7 +594,7 @@
     challenge.draw();
     E.expect = (m) => challenge.on && m === challenge.target;
     onLeave(() => { E.expect = null; });
-    if (defi) setTimeout(() => challenge.start(), 300);
+    if (defi) setTimeout(() => countdown(() => challenge.start()), 300);
     onLeave(() => { challenge.on = false; });
   }
 
@@ -529,7 +612,8 @@
       if (!h || h === 'accueil' || h === 'qui') location.reload(); else { window.octaveUpdate = true; toast('Nouvelle version prête : elle s\'affichera au retour à l\'accueil'); }
     });
   }
-  Object.assign(SCREENS, { qui: Who, joueur: Player, accueil: Home, clavier: Keyboard, parcours: Soon('parcours'), morceaux: Soon('morceaux'), reglages: Settings });
-  window.App = { get DB() { return DB; }, get prevHash() { return prevHash; }, startInput, stopInput, gate, save, prof, isKid, shell, header, esc, toast, go, onLeave, ICON, screens: SCREENS, route, inputOn, inputLabel, VERSION };
+  Object.assign(SCREENS, { qui: Who, joueur: Player, accueil: Home, clavier: Keyboard, reglages: Settings });
+  protectStorage();
+  window.App = { protectStorage, countdown, setOrient, toggleOrient, isLandscape, say, sayBtn, sayAuto, hush, canSay, get DB() { return DB; }, get prevHash() { return prevHash; }, startInput, stopInput, gate, save, prof, isKid, shell, header, esc, toast, go, onLeave, ICON, screens: SCREENS, route, inputOn, inputLabel, VERSION };
   window.addEventListener('DOMContentLoaded', route);
 })();

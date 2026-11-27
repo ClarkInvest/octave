@@ -189,11 +189,13 @@
     const ctx = step ? 'Monde ' + step.world.n + ' · étape ' + step.n + ' sur ' + step.world.steps.length + ' · ' + L.min + ' min' : 'Leçon · ' + L.min + ' min';
     A.shell('parcours', A.header() +
       '<div class="row"><a href="#parcours" class="icon-btn" aria-label="Retour au parcours">' + A.ICON.back + '</a><span class="eyebrow">' + ctx + '</span></div>' +
-      '<article class="lesson"><h1 class="h1">' + A.esc(L.title) + '</h1>' + blocks +
+      '<article class="lesson"><h1 class="h1">' + A.esc(L.title) + '</h1>' +
+      (A.canSay ? '<div class="say-row">' + A.sayBtn(L.title + '. ' + L.body.filter((b) => b.p).map((b) => b.p).join(' '), 'Écouter la leçon') + '</div>' : '') + blocks +
       '<div class="lesson-end"><div class="tip" style="color:var(--text)">' + M.svg(p.mascot, 'happy') + '<div><div class="label">' + (now ? 'C\'est lu ?' : 'Prêt pour le quiz ?') + '</div><div class="help">' + (now ? 'Passe à l\'étape suivante du parcours.' : L.quiz.length + ' questions' + (done ? ' · dernier score ' + done.score + '/' + done.total : '')) + '</div></div></div>' +
       (now ? '<button class="btn" id="lread">J\'ai lu, étape suivante ' + A.ICON.play + '</button>' : '<a class="btn" href="#quiz-' + L.id + '">Faire le quiz</a>') + '</div></article>');
     const rb = document.getElementById('lread');
     if (rb) rb.onclick = () => { const res = PA.report('lire', id, {}); location.hash = res && res.next ? PA.href(res.next) : '#parcours'; };
+    if (A.sayAuto()) setTimeout(() => A.say(L.title + '. ' + L.body.filter((b) => b.p).map((b) => b.p).join(' ')), 400);
   }
 
   /* ---------- Écran : quiz ---------- */
@@ -215,16 +217,18 @@
     function show() {
       const q = qs[i]; answered = false;
       box.innerHTML = '<div class="between"><span class="eyebrow">Question ' + (i + 1) + ' sur ' + qs.length + '</span><div class="pips">' + qs.map((_, k) => '<i class="' + (k < i ? 'ok' : '') + '"></i>').join('') + '</div></div>' +
-        '<div class="card q-card"><div class="h2 q-title">' + A.esc(q.q) + '</div>' + visual(q) +
+        '<div class="card q-card"><div class="say-row"><div class="h2 q-title" style="flex:1">' + A.esc(q.q) + '</div>' + A.sayBtn(q.q + ' ' + q.opts.join(' ? ') + ' ?', '') + '</div>' + visual(q) +
         '<div class="q-opts">' + q.opts.map((o, k) => '<button class="q-opt" data-k="' + k + '">' + A.esc(o) + '</button>').join('') + '</div>' +
         '<div class="q-why" id="qwhy" hidden></div></div>';
       box.querySelectorAll('.q-opt').forEach((b) => b.onclick = () => answer(b));
+      if (A.sayAuto()) A.say(q.q + ' ' + q.opts.join(' ? ') + ' ?');
     }
     function answer(b) {
       if (answered) return; answered = true;
       const q = qs[i], ok = q.opts[+b.dataset.k] === q.good;
       if (ok) score++;
       box.querySelectorAll('.q-opt').forEach((x) => { x.disabled = true; if (q.opts[+x.dataset.k] === q.good) x.classList.add('good'); });
+      if (A.sayAuto()) A.say((ok ? (kid ? 'Bien joué !' : 'Exact.') : 'Pas tout à fait : c\'est ' + q.good + '.') + ' ' + (q.why || ''));
       if (!ok) b.classList.add('bad');
       E.sound.blip(ok);
       const why = document.getElementById('qwhy'); why.hidden = false;

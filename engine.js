@@ -154,7 +154,8 @@ window.Engine = (function () {
       mic.an.getFloatTimeDomainData(mic.buf);
       /* frappe d'une touche : l'énergie des 10 dernières millisecondes bondit par rapport à juste avant.
          Calculé à chaque image (léger), pour repérer une même note rejouée vite (do, do dans l'Ode à la joie) */
-      const B = mic.buf, nS = Math.min(B.length, 512); let es = 0;
+      /* fenêtre d'au moins deux périodes de la note en cours, sinon l'énergie d'une note grave « ondule » et simule des frappes */
+      const B = mic.buf, nS = Math.min(B.length, Math.max(512, Math.round(2.2 * ctx.sampleRate / Math.max(55, mic.cur !== null ? mic.freq : 400)))); let es = 0;
       for (let i = B.length - nS; i < B.length; i++) es += B[i] * B[i];
       es = Math.sqrt(es / nS);
       const tNow = performance.now();

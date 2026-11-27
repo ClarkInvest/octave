@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const A = window.App, E = window.Engine, MU = window.Music;
-  const BUILD = '0.7.2';
+  const BUILD = '0.8';
   const LOG_MAX = 200;
   const log = []; /* journal gardé tant que l'appli est ouverte */
 
@@ -31,7 +31,9 @@
       ['Câble MIDI pris en charge', E.midi.supported ? 'Oui' : 'Non'],
       ['Micro pris en charge', E.mic.supported ? 'Oui' : 'Non'],
       ['Disponible sans internet', navigator.serviceWorker && navigator.serviceWorker.controller ? 'Oui' : 'Pas encore'],
-      ['Progression enregistrée', storeKo + ' Ko']
+      ['Délai compensé en Défi', ['micro', 'midi', 'ecran'].map((k) => ({ micro: 'micro', midi: 'câble', ecran: 'écran' }[k] + ' ' + Math.round((((DB.input.lat || {})[k]) != null ? DB.input.lat[k] : { micro: 0.13, midi: 0.02, ecran: 0.04 }[k]) * 1000) + ' ms')).join(' · ')],
+      ['Progression enregistrée', storeKo + ' Ko'],
+      ['Protégée contre l\'effacement', '…']
     ];
     A.shell('reglages', A.header() +
       '<div class="row"><a href="#reglages" class="icon-btn" aria-label="Retour aux réglages">' + A.ICON.back + '</a><h1 class="h1">Diagnostic</h1></div>' +
@@ -43,8 +45,9 @@
       '</div><div class="stack">' +
         '<div class="card"><div class="between"><div class="h2">Journal en direct</div><div class="row" style="gap:6px"><button class="btn small ghost" id="dcopy">Copier</button><button class="btn small ghost" id="dclear">Effacer</button></div></div>' +
           '<div class="help">Tout ce que l\'appli reçoit : touches, pédale, notes entendues par le micro.</div><div class="dlog" id="dlog" aria-live="polite"></div></div>' +
-        '<div class="card"><div class="h2">Sauvegarde de la progression</div><div class="help">Copie ta progression et tes morceaux importés pour les garder ou les mettre sur un autre appareil (téléphone vers tablette par exemple).</div>' +
-          '<div class="row" style="flex-wrap:wrap"><button class="btn small" id="dexport">Copier ma progression</button><button class="btn small ghost" id="dimport">Restaurer…</button></div><div id="dimp" hidden><textarea id="dimptxt" class="dtext" rows="4" placeholder="Colle ici la progression copiée"></textarea><button class="btn small" id="dimpgo">Restaurer cette progression</button></div></div>' +
+        '<div class="card"><div class="h2">Sauvegarde de la progression</div><div class="help">Enregistre un fichier avec la progression de tous les joueurs et vos morceaux importés : pour la garder en sécurité, ou la mettre sur un autre appareil (téléphone vers tablette par exemple).</div>' +
+          '<div class="row" style="flex-wrap:wrap"><button class="btn small" id="dfile">Télécharger une sauvegarde</button><label class="btn small ghost" style="cursor:pointer">Restaurer un fichier<input type="file" id="dfilein" accept=".json,application/json" class="sr"></label></div>' +
+          '<div class="row" style="flex-wrap:wrap"><button class="btn small ghost" id="dexport">Copier en texte</button><button class="btn small ghost" id="dimport">Coller un texte…</button></div><div id="dimp" hidden><textarea id="dimptxt" class="dtext" rows="4" placeholder="Colle ici la progression copiée"></textarea><button class="btn small" id="dimpgo">Restaurer cette progression</button></div></div>' +
       '</div></div>');
 
     /* ---- journal ---- */
@@ -175,17 +178,34 @@
     A.onLeave(() => { cancelAnimationFrame(raf); if (E.mic.running) E.mic.stop(); E.sound.enabled = true; });
 
     /* ---- sauvegarde ---- */
-    document.getElementById('dexport').onclick = () => copy(JSON.stringify({ octave: BUILD, date: new Date().toISOString(), data: JSON.parse(localStorage.getItem('octave.v1') || '{}'), songs: JSON.parse(localStorage.getItem('octave.songs') || '[]') }), 'Progression copiée (avec tes morceaux) : colle-la dans une note ou un message');
-    document.getElementById('dimport').onclick = () => { document.getElementById('dimp').hidden = false; };
-    document.getElementById('dimpgo').onclick = () => A.gate(() => {
+    const backup = () => JSON.stringify({ octave: BUILD, date: new Date().toISOString(), data: JSON.parse(localStorage.getItem('octave.v1') || '{}'), songs: JSON.parse(localStorage.getItem('octave.songs') || '[]') });
+    document.getElementById('dexport').onclick = () => copy(backup(), 'Progression copiée (avec tes morceaux) : colle-la dans une note ou un message');
+    document.getElementById('dfile').onclick = () => {
+      const blob = new Blob([backup()], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = 'octave-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      A.toast('Sauvegarde enregistrée dans les téléchargements'); add('appli', 'Sauvegarde téléchargée');
+    };
+    function restore(txt) {
       try {
-        const obj = JSON.parse(document.getElementById('dimptxt').value), data = obj.data || obj;
+        const obj = JSON.parse(txt), data = obj.data || obj;
         if (!data || !Array.isArray(data.profiles)) throw new Error('format');
         localStorage.setItem('octave.v1', JSON.stringify(data));
         if (Array.isArray(obj.songs)) localStorage.setItem('octave.songs', JSON.stringify(obj.songs));
         A.toast('Progression restaurée'); setTimeout(() => location.reload(), 800);
-      } catch (e) { A.toast('Ce texte n\'est pas une progression Octave'); }
-    });
+      } catch (e) { A.toast('Ce n\'est pas une sauvegarde Octave'); }
+    }
+    const fin = document.getElementById('dfilein');
+    fin.onchange = () => {
+      const f = fin.files && fin.files[0]; if (!f) return;
+      const rd = new FileReader(); rd.onload = () => { const txt = rd.result; fin.value = ''; A.gate(() => restore(txt)); }; rd.readAsText(f);
+    };
+    document.getElementById('dimport').onclick = () => { document.getElementById('dimp').hidden = false; };
+    document.getElementById('dimpgo').onclick = () => { const txt = document.getElementById('dimptxt').value; A.gate(() => restore(txt)); };
+    /* protection du stockage */
+    if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then((ok) => {
+      const cells = document.querySelectorAll('.list .item'); cells.forEach((c) => { if (c.textContent.indexOf('Protégée contre') === 0) c.lastChild.textContent = ok ? 'Oui' : 'Non (Chrome décide ; installer l\'appli aide)'; });
+    }).catch(() => {});
 
     if (E.midi.access) { attach(); E.midi.onchange = () => { attach(); midiPanel(); }; }
     midiPanel(); micPanel();

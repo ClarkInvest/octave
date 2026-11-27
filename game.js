@@ -54,7 +54,7 @@
         '<div class="g-title"><div class="eyebrow">' + (concert ? (kid ? 'Concert de fin de monde' : 'Concert · fin du monde') : A.esc(song.by) + ' · Niveau ' + song.level) + '</div><div class="h2">' + A.esc(song.title) + '</div><div class="g-work" id="gwork" hidden></div></div>' +
         '<div class="g-ctrl"><div class="seg" role="group" aria-label="Mode de jeu"><button data-gm="tranquille">Tranquille</button><button data-gm="defi">Défi</button></div>' +
         '<div class="chip g-speed"><button class="icon-btn" id="slower" aria-label="Ralentir">−</button><span id="speed"></span><button class="icon-btn" id="faster" aria-label="Accélérer">+</button></div>' +
-        '<button class="btn small ghost" id="listen">Écouter</button></div></div>' +
+        '<button class="btn small ghost" id="listen">Écouter</button><button class="icon-btn" id="grot" aria-label="Tourner l\'écran (portrait ou paysage)">' + A.ICON.rotate + '</button></div></div>' +
       '<div class="g-staff card' + (both ? ' grand' : '') + '" id="gstaff"></div>' +
       '<div class="g-area" id="garea"><canvas id="gcv"></canvas>' +
         '<div class="g-hud"><div class="g-prog"><i id="gprog"></i></div><div class="g-stats"><div><span class="eyebrow">Précision</span><b id="gacc">—</b></div><div><span class="eyebrow">Série</span><b id="gcombo" class="accent-text">0</b></div></div></div>' +
@@ -128,6 +128,7 @@
     document.querySelectorAll('[data-gm]').forEach((b) => b.onclick = () => { if (run && run.kind === 'play') return; st.mode = b.dataset.gm; DB.input.gameMode = st.mode; A.save(); setControls(); ready(); });
     document.getElementById('slower').onclick = () => setSpeed(st.speed - 0.1);
     document.getElementById('faster').onclick = () => setSpeed(st.speed + 0.1);
+    document.getElementById('grot').onclick = () => A.toggleOrient();
     document.getElementById('listen').onclick = () => { if (run && run.kind === 'demo') { stop(); ready(); } else startDemo(); };
     document.getElementById('gpause').onclick = () => { if (!run) return; run.paused = !run.paused; if (!run.paused) { last = performance.now(); over.innerHTML = ''; over.hidden = true; } else { autoOff(); overlayPause(); } };
     setControls();
@@ -268,13 +269,13 @@
       const seg = (key, val, label) => '<button data-' + key + '="' + val + '" aria-pressed="' + (pr[key === 'ph' ? 'hand' : key] === val) + '">' + label + '</button>';
       return '<details class="g-workbox"' + (open ? ' open' : '') + '><summary><span class="label">' + (kid ? 'S\'entraîner sur un bout' : 'Travailler') + '</span><span class="help">' + (both ? 'main par main, ' : '') + 'un passage, en boucle</span></summary>' +
         (both ? '<div class="label">Main</div><div class="seg" role="group" aria-label="Main à jouer">' + seg('ph', 'tout', 'Les deux') + seg('ph', 'droite', 'Droite') + seg('ph', 'gauche', 'Gauche') + '</div>' +
-          (pr.hand !== 'tout' ? '<div class="help">' + (micro() ? 'L\'autre main s\'affiche en pointillés. Avec le micro, l\'appli ne la joue pas, pour ne pas fausser l\'écoute.' : 'L\'appli joue l\'autre main pour vous (en pointillés).') + '</div>' : '') : '') +
+          (pr.hand !== 'tout' && !kid ? '<div class="help">' + (micro() ? 'L\'autre main s\'affiche en pointillés. Avec le micro, l\'appli ne la joue pas, pour ne pas fausser l\'écoute.' : 'L\'appli joue l\'autre main pour vous (en pointillés).') + '</div>' : '') : '') +
         '<div class="label">Passage</div><div class="row g-bars"><span class="help">Mesures</span><button class="icon-btn" data-bar="from:-1" aria-label="Commencer une mesure plus tôt">−</button><b id="gfrom">' + pr.from + '</b><button class="icon-btn" data-bar="from:1" aria-label="Commencer une mesure plus tard">+</button>' +
           '<span class="help">à</span><button class="icon-btn" data-bar="to:-1" aria-label="Finir une mesure plus tôt">−</button><b id="gto">' + pr.to + '</b><button class="icon-btn" data-bar="to:1" aria-label="Finir une mesure plus tard">+</button><span class="help">sur ' + totalBars + '</span></div>' +
-        '<div class="between"><div><div class="label">En boucle</div><div class="help">Le passage recommence tout seul. Pause, puis « Terminer » pour arrêter.</div></div><button class="switch" role="switch" id="gloop" aria-label="En boucle" aria-checked="' + pr.loop + '"></button></div>' +
-        (pr.loop ? '<div class="between"><div><div class="label">Vitesse qui monte</div><div class="help">+5 % à chaque tour réussi à 90 %, jusqu\'à 100 %. Pensez à baisser la vitesse avant de commencer.</div></div><button class="switch" role="switch" id="gramp" aria-label="Vitesse qui monte" aria-checked="' + pr.ramp + '"></button></div>' : '') +
+        '<div class="between"><div><div class="label">En boucle</div>' + (kid ? '' : '<div class="help">Le passage recommence tout seul. Pause, puis « Terminer » pour arrêter.</div>') + '</div><button class="switch" role="switch" id="gloop" aria-label="En boucle" aria-checked="' + pr.loop + '"></button></div>' +
+        (pr.loop ? '<div class="between"><div><div class="label">Vitesse qui monte</div>' + (kid ? '' : '<div class="help">+5 % à chaque tour réussi à 90 %, jusqu\'à 100 %. Pensez à baisser la vitesse avant de commencer.</div>') + '</div><button class="switch" role="switch" id="gramp" aria-label="Vitesse qui monte" aria-checked="' + pr.ramp + '"></button></div>' : '') +
         (practicing() || pr.loop ? '<button class="btn small ghost" id="gall" style="align-self:flex-start">Revenir au morceau entier</button>' : '') +
-        (practicing() ? '<div class="help">En mode travail, les records et le parcours ne sont pas mis à jour : jouez le morceau entier pour ça.</div>' : '') +
+        (practicing() && !kid ? '<div class="help">En mode travail, les records et le parcours ne sont pas mis à jour : jouez le morceau entier pour ça.</div>' : '') +
         '</details>';
     }
     function bindWork() {
@@ -291,6 +292,7 @@
     }
 
     /* déroulement */
+    let saidReady = false;
     function reset() { view.forEach((n) => { n.hit = false; n.miss = false; n.q = 0; }); }
     function ready(keepScroll) {
       const sc = keepScroll ? over.scrollTop : 0;
@@ -300,7 +302,7 @@
       const empty = !groups.length;
       over.hidden = false; placeOver();
       over.innerHTML = '<div class="g-card"><div class="eyebrow">' + (st.mode === 'tranquille' ? 'Mode Tranquille' : 'Mode Défi') + '</div>' +
-        '<div class="h2" style="margin:4px 0 8px">' + (st.mode === 'tranquille' ? 'La musique attend la bonne note' : 'Joue en rythme, avec le métronome') + '</div>' +
+        '<div class="say-row" style="justify-content:center;margin:4px 0 8px"><div class="h2">' + (st.mode === 'tranquille' ? 'La musique attend la bonne note' : 'Joue en rythme, avec le métronome') + '</div>' + A.sayBtn((st.mode === 'tranquille' ? 'Mode tranquille : la musique attend la bonne note. ' : 'Mode défi : joue en rythme, avec le métronome. ') + song.title + '. ' + song.desc) + '</div>' +
         '<div class="help">' + A.esc(song.desc) + (best ? ' Record : ' + stars(best.stars) + ' ' + best.acc + ' %.' : '') + '</div>' +
         (concert ? '<div class="help step-rule">Pour valider le concert : au moins 1 étoile en mode Défi. Tu peux ralentir le tempo avec − .</div>' : '') +
         (st.mode === 'defi' ? '<label class="row" style="margin-top:10px;font-size:14px"><input type="checkbox" id="gmetro"' + (st.metro ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:var(--accent)"> Métronome</label>' : '') +
@@ -309,8 +311,9 @@
         (DB.input.source !== 'ecran' && !A.inputOn() ? '<div class="help" style="margin-top:10px">Votre clavier n\'est pas connecté : <a href="#clavier">le connecter</a>, ou touchez le clavier à l\'écran.</div>' : '') +
         (concert ? '' : workPanel()) + '</div>';
       const mt = document.getElementById('gmetro'); if (mt) mt.onchange = () => { st.metro = mt.checked; DB.input.metro = st.metro; A.save(); };
-      document.getElementById('ggo').onclick = start;
+      document.getElementById('ggo').onclick = () => { A.hush(); start(); };
       bindWork();
+      if (!keepScroll && !saidReady && A.sayAuto() && !E.mic.running) { saidReady = true; setTimeout(() => A.say(song.title + '. ' + (st.mode === 'tranquille' ? 'La musique attend la bonne note.' : 'Joue en rythme.')), 350); }
       if (sc) over.scrollTop = sc;
     }
     function stop() { cancelAnimationFrame(raf); run = null; lightsOff(); autoOff(); for (const m in keyEls) keyEls[m].classList.remove('target', 'demo'); }
@@ -318,6 +321,8 @@
     async function start() {
       document.getElementById('ggo').disabled = true; await A.startInput(); if (!document.getElementById('gover')) return;
       reset(); over.hidden = true; over.innerHTML = '';
+      await new Promise((res) => A.countdown(res));
+      if (!document.getElementById('gover')) return;
       run = { kind: 'play', beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, combo: 0, best: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], fxs: [], paused: false, pressed: new Set(), lastTick: -99, pass: 1, passes: [] };
       document.getElementById('gpause').hidden = false;
       last = performance.now(); loop(last);
@@ -389,6 +394,19 @@
     }
 
     /* fin d'un passage : en boucle on repart (et on accélère si c'est réussi), sinon résultat */
+    /* passages difficiles : erreurs comptées par mesure */
+    function markWeak(t) { if (!run) return; run.weak = run.weak || {}; const k = measureOf(t + t0); run.weak[k] = (run.weak[k] || 0) + 1; }
+    function stuckSpot(r) {
+      if (pr.to - pr.from < 2) return null;
+      const weak = Object.assign({}, r.weak || {}), count = {};
+      own().forEach((n) => { const k = measureOf(n.t + t0); count[k] = (count[k] || 0) + 1; if (n.miss || n.late) weak[k] = (weak[k] || 0) + 1; });
+      let best = null;
+      for (let k = pr.from; k < pr.to; k++) {
+        const w = (weak[k] || 0) + (weak[k + 1] || 0), c = (count[k] || 0) + (count[k + 1] || 0);
+        if (w >= 3 && c && w / c >= 0.25 && (!best || w > best.w)) best = { from: k, to: k + 1, w };
+      }
+      return best;
+    }
     /* petits mots au-dessus de la touche : Parfait, Bien, Un peu tôt… */
     function fx(m, text, kind) { if (run && run.fxs) { run.fxs.push({ m, text, kind, t: performance.now() }); if (run.fxs.length > 12) run.fxs.shift(); } }
     /* retard de l'entrée ajusté d'après les notes jouées (médiane des écarts) */
@@ -438,7 +456,7 @@
             run.gi++; run.pressed = new Set();
             if (run.combo % (kid ? 5 : 10) === 0) react('happy', CHEERS[Math.floor(Math.random() * CHEERS.length)]);
           }
-        } else if (!view.some((n) => n.auto && n.m === ev.midi && Math.abs(n.t - run.beat) < 1)) { run.wrong++; run.combo = 0; react('oops', kid ? 'Presque ! Regarde la touche qui brille' : null); }
+        } else if (!view.some((n) => n.auto && n.m === ev.midi && Math.abs(n.t - run.beat) < 1)) { run.wrong++; run.combo = 0; markWeak(g.t); react('oops', kid ? 'Presque ! Regarde la touche qui brille' : null); }
       } else {
         /* moment où la touche a vraiment été jouée, retard de l'entrée déduit */
         const b = run.beat - lat() / spb(), S = spb();
@@ -459,7 +477,7 @@
         if (late) { late.miss = false; late.hit = true; late.late = true; late.q = 0.4; run.missN--; run.lateN++; fx(late.m, 'En retard', 'soft'); return; }
         /* même touche qu'une note toute proche (doublon du micro, touche rejouée) : on ignore */
         if (view.some((n) => n.m === ev.midi && Math.abs(n.t - b) * S < 0.7)) return;
-        run.wrong++; run.combo = 0; fx(ev.midi, 'Fausse note', 'bad');
+        run.wrong++; run.combo = 0; markWeak(b); fx(ev.midi, 'Fausse note', 'bad');
       }
     });
     A.onLeave(offInput);
@@ -483,8 +501,12 @@
       /* en boucle : on garde le meilleur tour terminé */
       let acc = Math.round(passAcc(r) * 100);
       if (fromLoop && r.passes.length) acc = Math.max.apply(null, r.passes);
+      else if (fromLoop && st.mode === 'defi') { /* arrêté avant la fin du premier tour : seules les notes déjà passées comptent */
+        const judged = own().filter((n) => n.hit || n.miss); acc = judged.length ? Math.round(judged.reduce((t, n) => t + (n.q || 0), 0) / judged.length * 100) : 0;
+      }
       const nStars = acc >= 95 ? 3 : acc >= 80 ? 2 : acc >= 60 ? 1 : 0;
       const work = practicing();
+      const spot = !fromLoop && !concert ? stuckSpot(r) : null;
       p.songs = p.songs || {};
       const prev = p.songs[song.id];
       const record = !work && (!prev || nStars > prev.stars || (nStars === prev.stars && acc > prev.acc));
@@ -501,9 +523,12 @@
         '<div class="h1" style="font-size:44px">' + acc + ' %</div><div class="help">' + detail + (coins ? ' · +' + coins + ' pièces' : '') + (record ? ' · nouveau record' : '') + '</div>' +
         (tuned ? '<div class="help step-rule">' + (kid ? 'Octave s\'est réglé sur ton jeu (' + (tuned > 0 ? '+' : '') + tuned + ' ms) pour mieux suivre ton rythme.' : 'Octave a ajusté le délai de ' + (DB.input.source === 'micro' ? 'votre micro' : 'votre clavier') + ' (' + (tuned > 0 ? '+' : '') + tuned + ' ms) pour mieux suivre votre rythme.') + '</div>' : '') +
         (work ? '<div class="help step-rule">' + A.esc(document.getElementById('gwork').textContent) + '. Quand c\'est au point, jouez le morceau entier pour le record.</div>' : '') +
+        (spot ? '<div class="stuck"><div class="label">' + (kid ? 'Les mesures ' + spot.from + ' et ' + spot.to + ' sont difficiles ?' : 'Les mesures ' + spot.from + ' et ' + spot.to + ' vous ont posé problème.') + '</div><button class="btn small" id="gstuck">' + (kid ? 'On les travaille !' : 'Les travailler en boucle, plus lentement') + '</button></div>' : '') +
         (res ? '<div class="g-next">' + window.Path.resultHtml(res) + '</div>' : '') +
         '<div class="row" style="margin-top:12px;justify-content:center;flex-wrap:wrap"><button class="btn' + (res && res.passed ? ' ghost' : '') + '" id="gagain">Rejouer</button><a class="btn ghost" href="' + back + '">' + (back === '#morceaux' ? 'Autres morceaux' : 'Retour') + '</a></div></div>';
       document.getElementById('gagain').onclick = () => ready();
+      const gs = document.getElementById('gstuck');
+      if (gs) gs.onclick = () => { Object.assign(pr, { from: spot.from, to: spot.to, loop: true, ramp: true }); savePr(); setSpeed(Math.max(0.4, Math.min(0.8, st.speed * 0.8))); build(); setControls(); ready(); };
       if (nStars >= 2) react('happy', kid ? 'Quelle star !' : 'Belle interprétation');
     }
 
