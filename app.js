@@ -1,7 +1,7 @@
 /* Octave — application familiale d'apprentissage du piano (socle v0.1) */
 (function () {
   'use strict';
-  const VERSION = '0.7';
+  const VERSION = '0.7.1';
   const E = window.Engine, M = window.Mascots;
   const app = document.getElementById('app');
   const KEY = 'octave.v1';

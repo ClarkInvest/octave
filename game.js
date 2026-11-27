@@ -97,6 +97,12 @@
     const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     const COL = { accent: css('--accent'), text: css('--text'), muted: css('--muted'), line: css('--line'), surf: css('--surf'), surf2: css('--surf2'), alt: css('--alt'), good: css('--good'), bad: css('--bad'), bg: css('--bg') };
     const spb = () => 60 / (song.tempo * st.speed);
+    /* Défi : fenêtres de justesse rythmique (secondes) et retard propre à chaque entrée.
+       Le micro entend la note un peu après qu'on l'a jouée (analyse du son) : on le compense,
+       et ce retard se règle tout seul d'une partie à l'autre. */
+    const WIN = { perfect: 0.075, good: 0.15, ok: kid ? 0.32 : 0.27, late: 0.5 };
+    const LAT0 = { micro: 0.13, midi: 0.02, ecran: 0.04 };
+    const lat = () => { const l = DB.input.lat || {}; return typeof l[DB.input.source] === 'number' ? l[DB.input.source] : LAT0[DB.input.source] || 0; };
 
     function fit() {
       const r = area.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -192,6 +198,18 @@
       }
       ctx2.globalAlpha = 1;
       ctx2.fillStyle = COL.accent; ctx2.fillRect(0, hitY, W, 3);
+      if (run && run.fxs) {
+        const now = performance.now();
+        run.fxs = run.fxs.filter((f) => now - f.t < 700);
+        ctx2.textAlign = 'center'; ctx2.font = '700 13px ' + (kid ? 'Rubik' : 'Inter') + ', sans-serif';
+        run.fxs.forEach((f) => {
+          const g = geo[f.m]; if (!g) return;
+          const k = (now - f.t) / 700, x = (g.x + g.w / 2) / 100 * W;
+          ctx2.globalAlpha = 1 - k; ctx2.fillStyle = f.kind === 'good' ? COL.good : f.kind === 'bad' ? COL.bad : COL.muted;
+          ctx2.fillText(f.text, Math.max(40, Math.min(W - 40, x)), hitY - 26 - k * 22);
+        });
+        ctx2.globalAlpha = 1;
+      }
       const cur = run && run.kind === 'play' && st.mode === 'tranquille' ? run.gi : -1;
       const curT = cur >= 0 && groups[cur] ? groups[cur].t : null;
       view.forEach((n) => {
@@ -300,7 +318,7 @@
     async function start() {
       document.getElementById('ggo').disabled = true; await A.startInput(); if (!document.getElementById('gover')) return;
       reset(); over.hidden = true; over.innerHTML = '';
-      run = { kind: 'play', beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, combo: 0, best: 0, perfect: 0, okay: 0, missN: 0, paused: false, pressed: new Set(), lastTick: -99, pass: 1, passes: [] };
+      run = { kind: 'play', beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, combo: 0, best: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], fxs: [], paused: false, pressed: new Set(), lastTick: -99, pass: 1, passes: [] };
       document.getElementById('gpause').hidden = false;
       last = performance.now(); loop(last);
     }
@@ -355,8 +373,8 @@
       const prev = run.beat; run.beat += db;
       autoPlay(prev, run.beat);
       if (st.metro) { const tick = Math.floor(run.beat); if (tick > run.lastTick) { run.lastTick = tick; if (run.beat < vlen) click(((tick - (pickup && pr.from <= 1 ? pickup : 0)) % bar + bar) % bar === 0); } }
-      const win = 0.22 / spb();
-      view.forEach((n) => { if (!n.auto && !n.hit && !n.miss && run.beat > n.t + win) { n.miss = true; n.q = 0; run.missN++; if (run.combo >= 5) react('oops'); run.combo = 0; } });
+      const win = WIN.ok / spb(), wait = (WIN.ok + lat()) / spb();
+      view.forEach((n) => { if (!n.auto && !n.hit && !n.miss && run.beat > n.t + wait) { n.miss = true; n.missAt = run.beat; n.q = 0; run.missN++; if (run.combo >= 5) react('oops'); run.combo = 0; } });
       const soon = new Set(view.filter((n) => !n.auto && !n.hit && !n.miss && n.t - run.beat < 1 && n.t - run.beat > -win).map((n) => n.m));
       lights(soon);
       for (const m in keyEls) keyEls[m].classList.toggle('target', soon.has(+m));
@@ -371,6 +389,17 @@
     }
 
     /* fin d'un passage : en boucle on repart (et on accélère si c'est réussi), sinon résultat */
+    /* petits mots au-dessus de la touche : Parfait, Bien, Un peu tôt… */
+    function fx(m, text, kind) { if (run && run.fxs) { run.fxs.push({ m, text, kind, t: performance.now() }); if (run.fxs.length > 12) run.fxs.shift(); } }
+    /* retard de l'entrée ajusté d'après les notes jouées (médiane des écarts) */
+    function tune(r) {
+      if (st.mode !== 'defi' || !r || !r.offs || r.offs.length < 6) return 0;
+      const o = r.offs.slice().sort((a, b) => a - b), med = o[Math.floor(o.length / 2)];
+      if (Math.abs(med) < 0.025) return 0;
+      const now = lat(), next = Math.max(0, Math.min(0.35, now + med * 0.6));
+      DB.input.lat = DB.input.lat || {}; DB.input.lat[DB.input.source] = Math.round(next * 1000) / 1000; A.save();
+      return Math.round((next - now) * 1000);
+    }
     function endPass() {
       if (!pr.loop) { finish(); return; }
       const acc = passAcc(run), pct = Math.round(acc * 100);
@@ -380,7 +409,7 @@
       else if (pr.ramp && acc >= 0.9 && st.speed >= 1) msg += kid ? ' · à fond !' : ' · vitesse normale atteinte';
       react(acc >= 0.9 ? 'happy' : 'idle', msg);
       autoOff(); reset();
-      Object.assign(run, { beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, perfect: 0, okay: 0, missN: 0, pressed: new Set(), lastTick: -99, pass: run.pass + 1 });
+      tune(run); Object.assign(run, { beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], pressed: new Set(), lastTick: -99, pass: run.pass + 1 });
     }
 
     /* entrée des notes */
@@ -388,10 +417,12 @@
     E.expect = (m) => {
       if (!run || run.kind !== 'play') return false;
       if (st.mode === 'tranquille') { const g = groups[run.gi]; return !!g && g.notes.some((n) => n.m === m); }
-      const win = 0.5 / spb();
-      return view.some((n) => !n.auto && !n.hit && !n.miss && n.m === m && Math.abs(n.t - run.beat) <= win);
+      const b = run.beat - lat() / spb(), win = 0.6 / spb();
+      return view.some((n) => !n.auto && !n.hit && n.m === m && Math.abs(n.t - b) <= win);
     };
     A.onLeave(() => { E.expect = null; });
+    window.OctaveGame = { get beat() { return run ? run.beat : null; }, get view() { return view; }, get spb() { return spb(); } }; /* pour le diagnostic et les tests */
+    A.onLeave(() => { window.OctaveGame = null; });
     const offInput = E.on((ev) => {
       if (ev.type === 'pedal') return;
       const el = keyEls[ev.midi]; if (el) el.classList.toggle('on', ev.type === 'on');
@@ -409,15 +440,26 @@
           }
         } else if (!view.some((n) => n.auto && n.m === ev.midi && Math.abs(n.t - run.beat) < 1)) { run.wrong++; run.combo = 0; react('oops', kid ? 'Presque ! Regarde la touche qui brille' : null); }
       } else {
-        const win = 0.22 / spb();
+        /* moment où la touche a vraiment été jouée, retard de l'entrée déduit */
+        const b = run.beat - lat() / spb(), S = spb();
         let best = null, bd = 1e9;
-        view.forEach((n) => { if (!n.auto && !n.hit && !n.miss && n.m === ev.midi) { const d = Math.abs(n.t - run.beat); if (d < bd) { bd = d; best = n; } } });
-        if (best && bd <= win) {
-          const sec = bd * spb(); best.hit = true; best.q = sec < 0.08 ? 1 : 0.6;
-          if (best.q === 1) run.perfect++; else run.okay++;
+        view.forEach((n) => { if (!n.auto && !n.hit && !n.miss && n.m === ev.midi) { const d = Math.abs(n.t - b); if (d < bd) { bd = d; best = n; } } });
+        if (best && bd * S <= WIN.ok) {
+          const off = (b - best.t) * S, a = Math.abs(off); /* négatif : en avance */
+          best.hit = true; run.offs.push(off);
+          if (a <= WIN.perfect) { best.q = 1; run.perfect++; fx(best.m, kid ? 'Parfait !' : 'Parfait', 'good'); }
+          else if (a <= WIN.good) { best.q = 0.9; run.okay++; fx(best.m, 'Bien', 'good'); }
+          else { best.q = 0.7; run.close++; fx(best.m, off < 0 ? 'Un peu tôt' : 'Un peu tard', 'soft'); }
           run.combo++; run.best = Math.max(run.best, run.combo);
           if (run.combo % (kid ? 5 : 10) === 0) react('happy', CHEERS[Math.floor(Math.random() * CHEERS.length)]);
-        } else if (!view.some((n) => n.auto && n.m === ev.midi && Math.abs(n.t - run.beat) < 1)) { run.wrong++; run.combo = 0; }
+          return;
+        }
+        /* la bonne note, mais jouée trop tard : elle compte quand même (un peu), jamais comme une fausse note */
+        const late = view.filter((n) => !n.auto && n.miss && !n.late && n.m === ev.midi && (b - n.t) * S <= WIN.late + 0.15).sort((x, y) => y.t - x.t)[0];
+        if (late) { late.miss = false; late.hit = true; late.late = true; late.q = 0.4; run.missN--; run.lateN++; fx(late.m, 'En retard', 'soft'); return; }
+        /* même touche qu'une note toute proche (doublon du micro, touche rejouée) : on ignore */
+        if (view.some((n) => n.m === ev.midi && Math.abs(n.t - b) * S < 0.7)) return;
+        run.wrong++; run.combo = 0; fx(ev.midi, 'Fausse note', 'bad');
       }
     });
     A.onLeave(offInput);
@@ -436,6 +478,7 @@
     }
     function finish(fromLoop) {
       const r = run; stop();
+      const tuned = tune(r);
       document.getElementById('gpause').hidden = true;
       /* en boucle : on garde le meilleur tour terminé */
       let acc = Math.round(passAcc(r) * 100);
@@ -451,11 +494,12 @@
       const res = !work && window.Path ? window.Path.report('morceau', song.id, { stars: nStars, mode: st.mode }) : null;
       const detail = fromLoop && r.passes.length ? r.passes.length + ' tour' + (r.passes.length > 1 ? 's' : '') + ' : ' + r.passes.map((x) => x + ' %').join(' · ') + ' · vitesse ' + Math.round(st.speed * 100) + ' %'
         : st.mode === 'tranquille' ? r.good + ' notes justes · ' + r.wrong + ' fausses · meilleure série ' + r.best
-        : r.perfect + ' parfaites · ' + r.okay + ' bien · ' + r.missN + ' ratées · meilleure série ' + r.best;
+        : r.perfect + ' parfaites · ' + r.okay + ' bien' + (r.close ? ' · ' + r.close + ' un peu tôt ou tard' : '') + (r.lateN ? ' · ' + r.lateN + ' en retard' : '') + ' · ' + r.missN + ' ratées · meilleure série ' + r.best;
       over.hidden = false; placeOver();
       over.innerHTML = '<div class="g-card"><div class="g-res-mascot" style="color:var(--text)">' + M.svg(p.mascot, nStars >= 2 ? 'happy' : 'idle') + '</div>' +
         '<div class="g-stars" aria-label="' + nStars + ' étoiles sur 3">' + stars(nStars) + '</div>' +
         '<div class="h1" style="font-size:44px">' + acc + ' %</div><div class="help">' + detail + (coins ? ' · +' + coins + ' pièces' : '') + (record ? ' · nouveau record' : '') + '</div>' +
+        (tuned ? '<div class="help step-rule">' + (kid ? 'Octave s\'est réglé sur ton jeu (' + (tuned > 0 ? '+' : '') + tuned + ' ms) pour mieux suivre ton rythme.' : 'Octave a ajusté le délai de ' + (DB.input.source === 'micro' ? 'votre micro' : 'votre clavier') + ' (' + (tuned > 0 ? '+' : '') + tuned + ' ms) pour mieux suivre votre rythme.') + '</div>' : '') +
         (work ? '<div class="help step-rule">' + A.esc(document.getElementById('gwork').textContent) + '. Quand c\'est au point, jouez le morceau entier pour le record.</div>' : '') +
         (res ? '<div class="g-next">' + window.Path.resultHtml(res) + '</div>' : '') +
         '<div class="row" style="margin-top:12px;justify-content:center;flex-wrap:wrap"><button class="btn' + (res && res.passed ? ' ghost' : '') + '" id="gagain">Rejouer</button><a class="btn ghost" href="' + back + '">' + (back === '#morceaux' ? 'Autres morceaux' : 'Retour') + '</a></div></div>';

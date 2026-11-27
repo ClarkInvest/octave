@@ -22,8 +22,11 @@ window.Engine = (function () {
       if (!AC) return null;
       ctx = new AC({ latencyHint: 'interactive' });
       master = ctx.createGain(); master.gain.value = 0.5;
+      /* limiteur doux : évite que plusieurs notes ensemble saturent le haut-parleur (grésillement) */
       const comp = ctx.createDynamicsCompressor();
-      master.connect(comp); comp.connect(ctx.destination);
+      comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 12; comp.attack.value = 0.002; comp.release.value = 0.2;
+      const out = ctx.createGain(); out.gain.value = 0.85;
+      master.connect(comp); comp.connect(out); out.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
@@ -35,7 +38,9 @@ window.Engine = (function () {
       if (!sound.enabled) return;
       const c = audio(); if (!c) return;
       sound.stop(midi, true);
-      const f = 440 * Math.pow(2, (midi - 69) / 12), t = c.currentTime, v = 0.12 + 0.5 * ((vel || 90) / 127);
+      /* pas plus de 8 notes à la fois : on éteint la plus ancienne */
+      if (voices.size >= 8) sound.stop(voices.keys().next().value, true);
+      const f = 440 * Math.pow(2, (midi - 69) / 12), t = c.currentTime + 0.005, v = 0.08 + 0.3 * ((vel || 90) / 127);
       const g = c.createGain(), lp = c.createBiquadFilter();
       lp.type = 'lowpass'; lp.frequency.setValueAtTime(Math.min(9000, f * 8), t); lp.frequency.exponentialRampToValueAtTime(Math.max(400, f * 2), t + 1.2);
       const o1 = c.createOscillator(), o2 = c.createOscillator(), g2 = c.createGain();
@@ -50,7 +55,13 @@ window.Engine = (function () {
     stop(midi, fast) {
       const vo = voices.get(midi); if (!vo || !ctx) return;
       const t = ctx.currentTime;
-      try { vo.g.gain.cancelScheduledValues(t); vo.g.gain.setValueAtTime(vo.g.gain.value, t); vo.g.gain.exponentialRampToValueAtTime(0.0008, t + (fast ? 0.03 : 0.25)); vo.o1.stop(t + 0.3); vo.o2.stop(t + 0.3); } catch (e) { /* déjà arrêté */ }
+      /* on fige le volume là où il en est avant de l'éteindre en douceur : sans ça, un saut de volume fait un clic */
+      try {
+        const gp = vo.g.gain;
+        if (gp.cancelAndHoldAtTime) gp.cancelAndHoldAtTime(t); else { gp.cancelScheduledValues(t); gp.setValueAtTime(Math.max(0.0008, gp.value), t); }
+        gp.setTargetAtTime(0, t, fast ? 0.012 : 0.07);
+        vo.o1.stop(t + (fast ? 0.12 : 0.5)); vo.o2.stop(t + (fast ? 0.12 : 0.5));
+      } catch (e) { /* déjà arrêté */ }
       voices.delete(midi);
     },
     blip(ok) {
