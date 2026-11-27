@@ -1,7 +1,7 @@
 /* Octave — application familiale d'apprentissage du piano (socle v0.1) */
 (function () {
   'use strict';
-  const VERSION = '0.6';
+  const VERSION = '0.6.1';
   const E = window.Engine, M = window.Mascots;
   const app = document.getElementById('app');
   const KEY = 'octave.v1';
@@ -13,7 +13,7 @@
       { id: 'leonard', name: 'Léonard', mode: 'enfant', theme: 'peche', mascot: 'volt', coins: 0, best: null }
     ],
     current: null,
-    input: { source: 'midi', outId: null, channel: 1, lights: true, echo: false, volume: 0.6 }
+    input: { source: 'midi', outId: null, channel: 1, lights: true, echo: false, volume: 0.6, voiceFilter: true }
   };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   let DB = load();
@@ -36,7 +36,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#FBF2EC';
     E.sound.volume(DB.input.volume);
-    E.midi.channel = DB.input.channel; E.midi.echo = DB.input.echo;
+    E.midi.channel = DB.input.channel; E.midi.echo = DB.input.echo; E.mic.voiceFilter = DB.input.voiceFilter !== false;
   }
 
   /* ---------- Outils ---------- */
@@ -430,7 +430,10 @@
       panel.innerHTML = '<div class="between"><div class="h2">Micro</div><button class="btn small ghost" id="miccal">Calibrer</button></div>' +
         '<div><div class="between" style="margin-bottom:6px"><span class="label">Volume entendu</span><span class="help" id="micinfo">Seuil : bruit ambiant</span></div><div class="meter"><i id="miclvl"></i><b id="micfloor"></b></div></div>' +
         '<div><div class="between" style="margin-bottom:6px"><span class="label">Justesse</span><span class="help" id="miccents">—</span></div><div class="tuner"><b></b><i id="mictune"></i></div></div>' +
+        '<div class="item between"><div><div class="label">Ignorer la voix</div><div class="help">Ne garde que les notes frappées au piano : une parole ou un bruit ne compte pas comme une touche. Les notes sont reconnues un tout petit peu plus tard.</div></div><button class="switch" role="switch" id="micvoice" aria-label="Ignorer la voix" aria-checked="' + (DB.input.voiceFilter !== false) + '"></button></div>' +
         '<div class="help">Pour calibrer : restez silencieux 2 secondes. Si le piano est un peu désaccordé, l\'appli reconnaît quand même la note.</div>';
+      const mv = document.getElementById('micvoice');
+      mv.onclick = () => { DB.input.voiceFilter = DB.input.voiceFilter === false; E.mic.voiceFilter = DB.input.voiceFilter; save(); mv.setAttribute('aria-checked', DB.input.voiceFilter); };
       document.getElementById('miccal').onclick = async (e) => { e.target.disabled = true; e.target.textContent = 'Silence…'; await E.mic.calibrate(2000); e.target.disabled = false; e.target.textContent = 'Calibrer'; toast('Micro calibré'); };
       const lvl = document.getElementById('miclvl'), fl = document.getElementById('micfloor'), tune = document.getElementById('mictune'), cents = document.getElementById('miccents');
       const scale = (v) => Math.min(100, Math.sqrt(v / 0.25) * 100);
@@ -506,6 +509,8 @@
       }
     };
     challenge.draw();
+    E.expect = (m) => challenge.on && m === challenge.target;
+    onLeave(() => { E.expect = null; });
     if (defi) setTimeout(() => challenge.start(), 300);
     onLeave(() => { challenge.on = false; });
   }

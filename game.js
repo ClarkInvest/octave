@@ -250,6 +250,14 @@
     }
 
     /* entrée des notes */
+    /* notes attendues (pour le filtre anti-voix du micro) */
+    E.expect = (m) => {
+      if (!run || run.kind !== 'play') return false;
+      if (st.mode === 'tranquille') { const g = groups[run.gi]; return !!g && g.notes.some((n) => n.m === m); }
+      const win = 0.5 / spb();
+      return song.notes.some((n) => !n.hit && !n.miss && n.m === m && Math.abs(n.t - run.beat) <= win);
+    };
+    A.onLeave(() => { E.expect = null; });
     const offInput = E.on((ev) => {
       if (ev.type === 'pedal') return;
       const el = keyEls[ev.midi]; if (el) el.classList.toggle('on', ev.type === 'on');

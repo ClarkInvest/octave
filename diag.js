@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const A = window.App, E = window.Engine, MU = window.Music;
-  const BUILD = '0.6';
+  const BUILD = '0.6.1';
   const LOG_MAX = 200;
   const log = []; /* journal gardé tant que l'appli est ouverte */
 
@@ -73,6 +73,8 @@
       if (ev.type === 'on') add(ev.src === 'micro' ? 'micro' : 'écran', 'Note ' + E.name(ev.midi) + ' (' + ev.midi + ')' + (ev.src === 'micro' ? ' · ' + (E.mic.cents > 0 ? '+' : '') + E.mic.cents + ' centièmes' : ''));
     });
     A.onLeave(off);
+    E.mic.onIgnore = (m, why) => add('micro', 'Ignoré : ' + E.name(m) + ' (' + why + ', sans doute la voix ou un bruit)');
+    A.onLeave(() => { E.mic.onIgnore = null; });
 
     /* messages MIDI bruts */
     const attached = [];
@@ -155,6 +157,7 @@
       }
       kbox.innerHTML = '<div class="readout"><div class="note" id="dnote">—</div><div><div class="label" id="dfreq">—</div><div class="sub" id="dcents">Joue une note</div></div></div>' +
         '<div style="margin-top:12px"><div class="between" style="margin-bottom:6px"><span class="label">Volume entendu</span><span class="help" id="dlvl"></span></div><div class="meter"><i id="dlvlbar"></i><b id="dfloor"></b></div></div>' +
+        '<div class="help" style="margin-top:8px">Filtre anti-voix : <b>' + (E.mic.voiceFilter ? 'activé' : 'désactivé') + '</b> (réglable dans Mon clavier → Micro). Les sons ignorés apparaissent dans le journal.</div>' +
         '<div class="row" style="flex-wrap:wrap;margin-top:12px"><button class="btn small ghost" id="dcal">Calibrer (2 s de silence)</button><button class="btn small ghost" id="dmicstop">Couper le micro</button></div>';
       document.getElementById('dcal').onclick = async (e) => { e.target.disabled = true; e.target.textContent = 'Silence…'; const f = await m.calibrate(2000); e.target.disabled = false; e.target.textContent = 'Calibrer (2 s de silence)'; add('appli', 'Micro calibré · seuil ' + f.toFixed(4)); };
       document.getElementById('dmicstop').onclick = () => { m.stop(); E.sound.enabled = true; cancelAnimationFrame(raf); micPanel(); };

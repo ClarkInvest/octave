@@ -105,6 +105,9 @@ window.Engine = (function () {
     supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
     running: false, stream: null, an: null, buf: null, raf: 0, frame: 0,
     floor: 0.008, level: 0, freq: 0, cur: null, cents: 0, cand: null, candN: 0, peak: 0, status: 'off',
+    /* filtre anti-voix : une note de piano démarre d'un coup (attaque) et garde une hauteur stable ;
+       la voix monte plus doucement et sa hauteur glisse ou vibre */
+    voiceFilter: true, onIgnore: null, hist: [], rmsHist: [], attackAt: -1e9, candAt: 0, told: false, clarity: 0,
     async start() {
       if (!mic.supported) { mic.status = 'unsupported'; return mic.status; }
       const c = audio(); if (!c) { mic.status = 'unsupported'; return mic.status; }
@@ -141,20 +144,51 @@ window.Engine = (function () {
       mic.an.getFloatTimeDomainData(mic.buf);
       let rms = 0; for (let i = 0; i < mic.buf.length; i++) rms += mic.buf[i] * mic.buf[i];
       rms = Math.sqrt(rms / mic.buf.length); mic.level = rms;
-      let note = null;
+      let note = null, exact = 0;
       if (rms > mic.floor) {
         const f = detect(mic.buf, ctx.sampleRate);
+        mic.clarity = detect.clarity;
         if (f > 25 && f < 4500) {
-          mic.freq = f; const exact = 69 + 12 * Math.log2(f / 440); note = Math.round(exact); mic.cents = Math.round((exact - note) * 100);
+          mic.freq = f; exact = 69 + 12 * Math.log2(f / 440); note = Math.round(exact); mic.cents = Math.round((exact - note) * 100);
         }
       }
+      const now = performance.now();
+      /* attaque : le volume bondit par rapport à l'instant d'avant (~100 ms) */
+      const before = mic.rmsHist.length >= 3 ? Math.min.apply(null, mic.rmsHist.slice(-4, -1)) : 0;
+      if (rms > mic.floor * 2.5 && rms > Math.max(before, mic.floor * 0.5) * 2) mic.attackAt = now;
+      const softRise = rms > mic.floor * 2 && rms > before * 1.35;
+      mic.rmsHist.push(rms); if (mic.rmsHist.length > 8) mic.rmsHist.shift();
       const onset = rms > mic.peak * 1.8 && rms > mic.floor * 2;
       mic.peak = Math.max(rms, mic.peak * 0.93);
-      if (note !== null && note === mic.cand) mic.candN++; else { mic.cand = note; mic.candN = note === null ? 0 : 1; }
-      if (note === null && mic.cur !== null) { emit('off', mic.cur, 0, 'micro'); mic.cur = null; }
-      else if (note !== null && mic.candN >= 2 && (note !== mic.cur || onset)) {
+      if (note !== null && note === mic.cand) { mic.candN++; mic.hist.push(exact); if (mic.hist.length > 8) mic.hist.shift(); }
+      else { mic.cand = note; mic.candN = note === null ? 0 : 1; mic.hist = note === null ? [] : [exact]; mic.candAt = now; mic.told = false; }
+      if (note === null) { if (mic.cur !== null) { emit('off', mic.cur, 0, 'micro'); mic.cur = null; } return; }
+      if (!mic.voiceFilter) {
+        if (mic.candN >= 2 && (note !== mic.cur || onset)) start(note, rms);
+        return;
+      }
+      if (note === mic.cur) { if (onset && mic.candN >= 2) start(note, rms); return; } /* même touche frappée de nouveau */
+      /* l'écran en cours peut dire quelles notes il attend : celles-là sont acceptées vite,
+         les autres doivent vraiment ressembler à une touche de piano avant de compter comme une erreur */
+      const expected = typeof api.expect === 'function' && api.expect(note);
+      const spreadOf = (k) => { const h = mic.hist.slice(-k); return Math.max.apply(null, h) - Math.min.apply(null, h); };
+      let why = '';
+      if (expected) {
+        if (mic.candN < 2) return;
+        if (spreadOf(3) > 0.4) why = 'hauteur qui glisse';
+      } else {
+        const need = typeof api.expect === 'function' ? 5 : 3;
+        if (mic.candN < need) return;
+        const struck = mic.attackAt >= mic.candAt - 160 || (mic.cur !== null && softRise && now - mic.candAt < 200);
+        if (spreadOf(need) > 0.25) why = 'hauteur qui glisse';
+        else if (mic.clarity < 0.6) why = 'son peu net';
+        else if (!struck) why = 'pas d\'attaque de touche';
+      }
+      if (!why) { start(note, rms); return; }
+      if (!mic.told && mic.onIgnore) { mic.told = true; mic.onIgnore(note, why); }
+      function start(m, r) {
         if (mic.cur !== null) emit('off', mic.cur, 0, 'micro');
-        mic.cur = note; emit('on', note, Math.min(127, Math.round(40 + rms * 900)), 'micro');
+        mic.cur = m; emit('on', m, Math.min(127, Math.round(40 + r * 900)), 'micro');
       }
     }
   };
@@ -167,6 +201,7 @@ window.Engine = (function () {
     let d = minLag; while (d < maxLag && c[d] > c[d + 1]) d++;
     let max = -Infinity, pos = -1;
     for (let i = d; i < maxLag; i++) if (c[i] > max) { max = c[i]; pos = i; }
+    detect.clarity = c[0] > 0 ? Math.max(0, max) / c[0] : 0;
     if (pos < 1 || max < c[0] * 0.3) return -1;
     /* préfère le premier pic proche du maximum (évite l'erreur d'octave) */
     for (let i = d; i < pos; i++) if (c[i] > max * 0.9 && c[i] >= c[i - 1] && c[i] >= c[i + 1]) { pos = i; break; }
@@ -180,5 +215,6 @@ window.Engine = (function () {
     up(m) { sound.stop(m); emit('off', m, 0, 'ecran'); }
   };
 
-  return { on(fn) { listeners.add(fn); return () => listeners.delete(fn); }, held, name, intl, isBlack, sound, midi, mic, screen, audio };
+  const api = { on(fn) { listeners.add(fn); return () => listeners.delete(fn); }, held, name, intl, isBlack, sound, midi, mic, screen, audio, expect: null };
+  return api;
 })();

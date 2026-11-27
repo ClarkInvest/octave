@@ -388,6 +388,13 @@
       if (kind === 'lis' && lvl === 2) draw();
       react('oops');
     }
+    E.expect = (m) => {
+      if (S.phase !== 'play') return false;
+      if (kind === 'trouve') return m % 12 === S.target;
+      if (kind === 'accord') return S.chord.notes.some((c) => c % 12 === m % 12);
+      return match(m, S.target);
+    };
+    A.onLeave(() => { E.expect = null; });
     const off = E.on((ev) => {
       if (ev.type === 'pedal') return;
       const k = keys[ev.midi]; if (k) k.classList.toggle('on', ev.type === 'on');
