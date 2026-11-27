@@ -81,17 +81,23 @@ window.MidiFile = (function () {
   function build(file, opts) {
     const grid = opts.grid || 0.25, bar = file.beatsPerBar || 4;
     let notes = [];
-    file.tracks.forEach((tr) => { if (opts.tracks.includes(tr.index)) notes = notes.concat(tr.notes); });
+    const chosen = file.tracks.filter((tr) => opts.tracks.includes(tr.index) && tr.notes.length);
+    /* main de chaque note : avec deux pistes (cas courant des fichiers de piano), la plus grave est la main gauche ;
+       sinon, on coupe au Do du milieu */
+    const avg = (tr) => tr.notes.reduce((a, n) => a + n.m, 0) / tr.notes.length;
+    const lowTrack = chosen.length === 2 ? (avg(chosen[0]) < avg(chosen[1]) ? chosen[0].index : chosen[1].index) : null;
+    const spread = chosen.length === 2 && Math.abs(avg(chosen[0]) - avg(chosen[1])) >= 5;
+    chosen.forEach((tr) => { notes = notes.concat(tr.notes.map((n) => Object.assign({}, n, { h: spread ? (tr.index === lowTrack ? 'g' : 'd') : (n.m < 60 ? 'g' : 'd') }))); });
     /* extrait : de la mesure « from » à la mesure « to » (incluses) */
     const t0 = ((opts.from || 1) - 1) * bar, t1 = opts.to ? opts.to * bar : Infinity;
     notes = notes.filter((n) => n.t >= t0 - grid / 2 && n.t < t1 - grid / 2);
     /* alignement sur la grille, pour que les accords tombent ensemble */
     const q = (x) => Math.round(x / grid) * grid;
-    notes = notes.map((n) => ({ m: n.m, t: q(n.t - t0), d: Math.max(grid, q(n.d)) }));
+    notes = notes.map((n) => ({ m: n.m, t: q(n.t - t0), d: Math.max(grid, q(n.d)), h: n.h }));
     /* clavier de 61 touches (Do1 à Do6) : on ramène les notes trop graves ou aiguës d'une octave */
     notes.forEach((n) => { while (n.m < 36) n.m += 12; while (n.m > 96) n.m -= 12; });
-    if (opts.part === 'droite') notes = notes.filter((n) => n.m >= 60);
-    else if (opts.part === 'gauche') notes = notes.filter((n) => n.m < 60);
+    if (opts.part === 'droite') notes = notes.filter((n) => n.h === 'd');
+    else if (opts.part === 'gauche') notes = notes.filter((n) => n.h === 'g');
     /* doublons (même note au même moment) */
     const seen = new Set();
     notes = notes.filter((n) => { const k = n.t + '|' + n.m; if (seen.has(k)) return false; seen.add(k); return true; });

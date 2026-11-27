@@ -11,7 +11,7 @@
   }
   function hydrate(r) {
     return { id: r.id, title: r.title, by: r.by || 'Mon fichier MIDI', level: r.level || 1, tempo: r.tempo, kind: 'perso', desc: r.desc || 'Un morceau importé depuis un fichier MIDI.',
-      notes: r.n.map((x) => ({ m: x[0], t: x[1], d: x[2] })), length: r.length, perso: true, info: r.info || '' };
+      notes: r.n.map((x) => ({ m: x[0], t: x[1], d: x[2], h: x[3] === 1 ? 'g' : x[3] === 0 ? 'd' : (x[0] < 60 ? 'g' : 'd') })), length: r.length, bar: r.bar || 4, perso: true, info: r.info || '' };
   }
   function sync() {
     for (let k = MU.SONGS.length - 1; k >= 0; k--) if (MU.SONGS[k].perso) MU.SONGS.splice(k, 1);
@@ -25,11 +25,6 @@
   }
   sync();
 
-  /* aperçu : les 9 premiers instants, les notes d'un accord l'une au-dessus de l'autre */
-  function previewNotes(ns) {
-    const ts = [...new Set(ns.map((n) => n.t))].slice(0, 9);
-    return ns.filter((n) => ts.includes(n.t)).map((n) => ({ m: n.m, d: n.d, x: 70 + ts.indexOf(n.t) * 40 }));
-  }
   const fmtTime = (beats, bpm) => { const s = Math.round(beats * 60 / bpm); return Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0'); };
   const range = (ns) => { if (!ns.length) return ''; let lo = 127, hi = 0; ns.forEach((n) => { lo = Math.min(lo, n.m); hi = Math.max(hi, n.m); }); return E.name(lo) + ' à ' + E.name(hi); };
 
@@ -83,7 +78,7 @@
             '<input type="checkbox" data-tr="' + t.index + '"' + (opts.tracks.includes(t.index) ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:var(--accent);flex-shrink:0"></label>').join('') + '</div>' +
           '<div class="help">Décochez l\'accompagnement ou la batterie pour ne garder que ce que vous voulez jouer.</div></div>' +
         '<div class="card"><div class="label">Quelle main ?</div><div class="seg" role="group" aria-label="Main"><button data-part="tout">Les deux</button><button data-part="droite">Main droite</button><button data-part="gauche">Main gauche</button></div>' +
-          '<div class="help">Main droite : les notes à partir du Do du milieu (Do3). Main gauche : celles en dessous.</div>' +
+          '<div class="help">Si le fichier a deux pistes de piano, la plus grave devient la main gauche ; sinon, la main gauche joue sous le Do du milieu (Do3). Vous pourrez aussi travailler chaque main séparément dans le jeu.</div>' +
           '<div class="item between" style="margin-top:4px"><div><div class="label">Une note à la fois</div><div class="help">Garde la mélodie (la note la plus aiguë). Conseillé avec le micro, qui n\'entend qu\'une note à la fois.</div></div><button class="switch" role="switch" id="imelody" aria-label="Une note à la fois"></button></div></div>' +
       '</div><div class="stack">' +
         '<div class="card"><div class="label">Passage à jouer</div><div class="row" style="flex-wrap:wrap"><span class="help">De la mesure</span><input id="ifrom" class="pfield num" type="number" inputmode="numeric" min="1" max="' + bars + '" value="1"><span class="help">à la mesure</span><input id="ito" class="pfield num" type="number" inputmode="numeric" min="1" max="' + bars + '" value="' + bars + '"><span class="help">sur ' + bars + '</span></div>' +
@@ -116,7 +111,7 @@
       const lv = MF.level({ notes: built.notes, length: built.length, tempo: opts.tempo });
       const chords = built.notes.length / new Set(built.notes.map((n) => n.t)).size > 1.05;
       sum.innerHTML = '<div class="between"><div class="h2">Aperçu</div><span class="chip lvl">Niveau ' + lv + '</span></div>' +
-        '<div class="staff-box" style="height:110px;background:var(--surf2)">' + MU.staff({ notes: previewNotes(built.notes), clef: MU.clefFor(built.notes), width: 440, height: 110, gap: 9, top: 34, label: 'Début du morceau' }) + '</div>' +
+        '<div class="staff-box" style="height:130px;background:var(--surf2)">' + MU.preview({ notes: built.notes }, { x0: 70, dx: 40, count: 9, width: 440, height: 130, gap: 9, top: 40, gapG: 7, topG: 18, label: 'Début du morceau' }) + '</div>' +
         '<div class="help">' + built.notes.length + ' notes · ' + range(built.notes) + ' · environ ' + fmtTime(built.length, opts.tempo) + (chords ? ' · avec des accords' : '') + '</div>' +
         (built.notes.length > 1500 ? '<div class="help step-rule">C\'est un long morceau : choisir un passage le rendra plus agréable à travailler.</div>' : '') +
         (chords && DB.input.source === 'micro' ? '<div class="help step-rule">Le micro n\'entend qu\'une note à la fois : activez « Une note à la fois » pour jouer ce morceau au micro.</div>' : '') +
@@ -152,7 +147,7 @@
       const rec = { id: 'u' + Date.now().toString(36), title, by: 'Mon fichier MIDI', tempo: opts.tempo,
         level: MF.level({ notes: built.notes, length: built.length, tempo: opts.tempo }),
         desc: 'Importé depuis un fichier MIDI : ' + hand + (opts.melody ? ', une note à la fois' : '') + ', ' + passage + '.',
-        n: built.notes.map((n) => [n.m, n.t, n.d]), length: built.length, added: Date.now() };
+        n: built.notes.map((n) => [n.m, n.t, n.d, n.h === 'g' ? 1 : 0]), length: built.length, bar: file.beatsPerBar || 4, added: Date.now() };
       if (!add(rec)) return;
       A.toast((A.isKid() ? 'Morceau ajouté : ' : 'Morceau enregistré : ') + title);
       A.go('jeu-' + rec.id);

@@ -44,5 +44,5 @@
       desc: 'Une ligne de basse qui marche, puis un accord pour finir. Le concert du club !',
       rh: 'C3 E3 G3 F3 G3 E3 C3:2 F2 A2 C3 D3 C3 A2 F2:2 G2 B2 D3 B2 C3 E3 G3:2 C3+E3+G3:4' }
   ];
-  songs.forEach((s) => { const p = MU.parse(s.rh); s.notes = p.notes; s.length = p.length; MU.SONGS.push(s); });
+  songs.forEach((s) => { if (s.id === 'valse') s.bar = 3; MU.build(s); MU.SONGS.push(s); });
 })();
