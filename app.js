@@ -119,7 +119,7 @@
         '<span class="name">' + esc(p.name) + '</span><span class="meta">Mode ' + (p.mode === 'enfant' ? 'Enfant' : 'Adulte') + ' · ' + esc(M.list[p.mascot].name) + '</span></button>').join('') +
         '<a class="who-card who-add" href="#joueur-nouveau"><span class="who-plus" aria-hidden="true">+</span><span class="name">Ajouter</span><span class="meta">Un nouveau joueur</span></a>' +
       '</div><div class="help">Octave · version ' + VERSION + '</div></div>';
-    app.querySelectorAll('.who-card').forEach((b) => b.addEventListener('click', () => { DB.current = b.dataset.id; save(); E.audio(); go('accueil'); }));
+    app.querySelectorAll('.who-card[data-id]').forEach((b) => b.addEventListener('click', () => { DB.current = b.dataset.id; save(); E.audio(); go('accueil'); }));
   }
 
   /* ---------- Écran : accueil ---------- */
