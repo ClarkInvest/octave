@@ -24,19 +24,19 @@
     { id: 'm1', title: 'Premiers pas', kid: 'Le garage', sum: 'Le clavier, les doigts, Do-Ré-Mi-Fa-Sol, la noire et la blanche.', steps: [
       { type: 'lire', ref: 'clavier' },
       { type: 'quiz', ref: 'clavier' },
-      { type: 'clavier', ex: { kind: 'trouve', pcs: [0] }, title: 'Trouve tous les Do', teach: [60] },
+      { type: 'clavier', ex: { kind: 'trouve', pcs: [0] }, title: 'Trouve tous les Do', teach: [60], key: 'trouve-do' },
       { type: 'lire', ref: 'doigts' },
       { type: 'quiz', ref: 'doigts' },
       { type: 'lire', ref: 'do-re-mi', teach: [60, 62, 64] },
-      { type: 'clavier', ex: { kind: 'suite' }, title: 'Do, Ré, Mi avec les bons doigts' },
-      { type: 'clavier', ex: { kind: 'joue' }, title: 'Joue la note demandée' },
+      { type: 'clavier', ex: { kind: 'suite' }, title: 'Do, Ré, Mi avec les bons doigts', key: 'suite-do-re-mi' },
+      { type: 'clavier', ex: { kind: 'joue' }, title: 'Joue la note demandée', key: 'joue-notes' },
       { type: 'morceau', ref: 'lune' },
       { type: 'lire', ref: 'fa-sol', teach: [65, 67] },
-      { type: 'clavier', ex: { kind: 'suite' }, title: 'Les cinq doigts' },
+      { type: 'clavier', ex: { kind: 'suite' }, title: 'Les cinq doigts', key: 'suite-cinq-doigts' },
       { type: 'morceau', ref: 'cinq' },
       { type: 'lire', ref: 'noire-blanche' },
       { type: 'quiz', ref: 'noire-blanche' },
-      { type: 'clavier', ex: { kind: 'trouve' }, title: 'Retrouve tes notes partout' },
+      { type: 'clavier', ex: { kind: 'trouve' }, title: 'Retrouve tes notes partout', key: 'trouve-partout' },
       { type: 'morceau', ref: 'marche' },
       { type: 'concert', ref: 'joie' }
     ] },
@@ -45,34 +45,34 @@
       { type: 'quiz', ref: 'portee' },
       { type: 'lire', ref: 'notes-sol', teach: [60, 62, 64, 65, 67, 69, 71, 72] },
       { type: 'quiz', ref: 'notes-sol' },
-      { type: 'clavier', ex: { kind: 'lis' }, title: 'Lis la note et joue-la' },
+      { type: 'clavier', ex: { kind: 'lis' }, title: 'Lis la note et joue-la', key: 'lis-notes' },
       { type: 'morceau', ref: 'gamme' },
       { type: 'lire', ref: 'durees' },
       { type: 'quiz', ref: 'durees' },
-      { type: 'clavier', ex: { kind: 'trouve' }, title: 'Retrouve tes notes partout' },
+      { type: 'clavier', ex: { kind: 'trouve' }, title: 'Retrouve tes notes partout', key: 'trouve-partout' },
       { type: 'morceau', ref: 'jacques', teach: [55] },
       { type: 'lire', ref: 'mesure' },
       { type: 'quiz', ref: 'mesure' },
       { type: 'lire', ref: 'silences' },
       { type: 'quiz', ref: 'silences' },
-      { type: 'clavier', ex: { kind: 'suite' }, title: 'Des suites plus longues' },
-      { type: 'clavier', ex: { kind: 'lis' }, title: 'Lecture rapide' },
+      { type: 'clavier', ex: { kind: 'suite' }, title: 'Des suites plus longues', key: 'suite-longue' },
+      { type: 'clavier', ex: { kind: 'lis' }, title: 'Lecture rapide', key: 'lis-rapide' },
       { type: 'concert', ref: 'jingle' }
     ] },
     { id: 'm3', title: 'La main gauche', kid: 'Le club', sum: 'La clé de fa, la main gauche en position de Do, les accords Do, Fa et Sol.', steps: [
       { type: 'lire', ref: 'cle-fa' },
       { type: 'quiz', ref: 'cle-fa' },
       { type: 'lire', ref: 'main-gauche', teach: [48, 50, 52, 53, 55] },
-      { type: 'clavier', ex: { kind: 'trouve', zone: 'grave' }, title: 'Trouve tes notes dans les graves' },
-      { type: 'clavier', ex: { kind: 'suite', zone: 'grave', hand: 'g' }, title: 'Les cinq doigts de la main gauche' },
+      { type: 'clavier', ex: { kind: 'trouve', zone: 'grave' }, title: 'Trouve tes notes dans les graves', key: 'trouve-graves' },
+      { type: 'clavier', ex: { kind: 'suite', zone: 'grave', hand: 'g' }, title: 'Les cinq doigts de la main gauche', key: 'suite-main-gauche' },
       { type: 'quiz', ref: 'main-gauche' },
-      { type: 'clavier', ex: { kind: 'lis', zone: 'grave' }, title: 'Lis en clé de fa' },
+      { type: 'clavier', ex: { kind: 'lis', zone: 'grave' }, title: 'Lis en clé de fa', key: 'lis-cle-fa' },
       { type: 'morceau', ref: 'ours' },
       { type: 'oreille', ref: 'aigu', title: 'Aigu ou grave ?' },
       { type: 'lire', ref: 'accords', teach: [41, 43, 45, 47] },
       { type: 'quiz', ref: 'accords' },
-      { type: 'clavier', ex: { kind: 'accord', chords: ['do'] }, title: 'Ton premier accord : Do' },
-      { type: 'clavier', ex: { kind: 'accord', chords: ['do', 'fa', 'sol'] }, title: 'Do, Fa, Sol' },
+      { type: 'clavier', ex: { kind: 'accord', chords: ['do'] }, title: 'Ton premier accord : Do', key: 'accord-do' },
+      { type: 'clavier', ex: { kind: 'accord', chords: ['do', 'fa', 'sol'] }, title: 'Do, Fa, Sol', key: 'accord-do-fa-sol' },
       { type: 'rythme', ref: 'tape', title: 'Tape le rythme' },
       { type: 'morceau', ref: 'valse' },
       { type: 'oreille', ref: 'repete', title: 'Rejoue ce que tu entends' },
@@ -81,11 +81,40 @@
     { id: 'm4', title: 'Les deux mains', kid: 'La grande salle', sum: 'Mélodie et basse ensemble, la coordination, le tempo qui monte.', soon: true },
     { id: 'm5', title: 'Plus loin', kid: 'Le stade', sum: 'Dièses et bémols, croches, gammes, et le début de la Lettre à Élise.', soon: true }
   ];
+  /* Chaque étape a un nom fixe (« m1-lire-clavier », « m1-trouve-do »…) : on peut ajouter ou déplacer
+     des étapes plus tard sans décaler la progression déjà enregistrée. */
   const STEPS = [];
   WORLDS.forEach((w, wi) => {
     w.n = wi + 1;
-    (w.steps || []).forEach((s, si) => { s.id = w.id + '-' + (si + 1); s.n = si + 1; s.world = w; if (s.type === 'clavier') s.ref = s.id; STEPS.push(s); });
+    (w.steps || []).forEach((s, si) => {
+      s.id = w.id + '-' + (s.key || s.type + '-' + s.ref); s.n = si + 1; s.world = w;
+      if (s.type === 'clavier') s.ref = s.id;
+      if (STEPS.some((x) => x.id === s.id)) console.error('Étape en double : ' + s.id);
+      STEPS.push(s);
+    });
   });
+
+  /* Conversion des progressions enregistrées avant la v0.5 (étapes numérotées « m1-3 »).
+     Cette liste fige l'ordre de l'époque : elle ne doit plus jamais changer. */
+  const LEGACY = {
+    m1: ['lire-clavier', 'quiz-clavier', 'trouve-do', 'lire-doigts', 'quiz-doigts', 'lire-do-re-mi', 'suite-do-re-mi', 'joue-notes', 'morceau-lune', 'lire-fa-sol', 'suite-cinq-doigts', 'morceau-cinq', 'lire-noire-blanche', 'quiz-noire-blanche', 'trouve-partout', 'morceau-marche', 'concert-joie'],
+    m2: ['lire-portee', 'quiz-portee', 'lire-notes-sol', 'quiz-notes-sol', 'lis-notes', 'morceau-gamme', 'lire-durees', 'quiz-durees', 'trouve-partout', 'morceau-jacques', 'lire-mesure', 'quiz-mesure', 'lire-silences', 'quiz-silences', 'suite-longue', 'lis-rapide', 'concert-jingle'],
+    m3: ['lire-cle-fa', 'quiz-cle-fa', 'lire-main-gauche', 'trouve-graves', 'suite-main-gauche', 'quiz-main-gauche', 'lis-cle-fa', 'morceau-ours', 'oreille-aigu', 'lire-accords', 'quiz-accords', 'accord-do', 'accord-do-fa-sol', 'rythme-tape', 'morceau-valse', 'oreille-repete', 'concert-blues']
+  };
+  function migrate() {
+    let changed = false;
+    A.DB.profiles.forEach((p) => {
+      if (!p.path || p.pathV === 2) return;
+      const out = {};
+      Object.keys(p.path).forEach((k) => {
+        const m = /^(m\d)-(\d+)$/.exec(k), list = m && LEGACY[m[1]];
+        out[list && list[+m[2] - 1] ? m[1] + '-' + list[+m[2] - 1] : k] = p.path[k];
+      });
+      p.path = out; p.pathV = 2; changed = true;
+    });
+    if (changed) A.save();
+  }
+  migrate();
   const worldName = (w) => (A.isKid() ? w.kid : w.title);
 
   function stepTitle(s) {
@@ -141,7 +170,7 @@
     let s = cur && types.includes(cur.type) && cur.ref === ref ? cur : null;
     if (s) {
       if (!PASS[s.type](r)) return { step: s, passed: false };
-      p.path = p.path || {}; p.path[s.id] = { at: Date.now() };
+      p.path = p.path || {}; p.pathV = 2; p.path[s.id] = { at: Date.now() };
       if (A.isKid()) p.coins += 10;
       A.save();
       const next = current(p);
