@@ -107,7 +107,10 @@
       const H0 = 128, W0 = Math.max(420, Math.round(H0 * (box.clientWidth - 28) / Math.max(60, box.clientHeight - 12))), dx = 56, x0 = 90;
       const from = Math.max(0, cur - 1), to = Math.min(groups.length, from + Math.floor((W0 - x0) / dx));
       const notes = [];
-      for (let gi = from; gi < to; gi++) groups[gi].notes.forEach((n) => notes.push({ m: n.m, d: n.d, x: x0 + (gi - from) * dx, color: gi < cur ? COL.muted : gi === cur ? COL.accent : COL.text, label: gi >= cur && gi < cur + 6 ? MU.natName(n.m) : '' }));
+      for (let gi = from; gi < to; gi++) {
+        const low = Math.min.apply(null, groups[gi].notes.map((n) => n.m)); /* un seul nom par accord : la note la plus grave */
+        groups[gi].notes.forEach((n) => notes.push({ m: n.m, d: n.d, x: x0 + (gi - from) * dx, color: gi < cur ? COL.muted : gi === cur ? COL.accent : COL.text, label: gi >= cur && gi < cur + 6 && n.m === low ? MU.natName(n.m) : '' }));
+      }
       box.innerHTML = MU.staff({ notes, clef, width: W0, height: H0, gap: 11, top: 34, cursorX: cur < groups.length ? x0 + (cur - from) * dx : 0, label: 'Partition' });
     }
 
