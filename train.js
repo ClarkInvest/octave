@@ -157,7 +157,7 @@
       const lv = levelUp(p, mode, acc);
       let coins = 0;
       const res = ctx.step ? PA().report('oreille', mode, { acc }) : null;
-      if (kid && !ctx.step) { coins = Math.round(acc * 8); p.coins += coins; }
+      if (!ctx.step) { coins = Math.round(acc * 8); A.addCoins(p, coins); }
       A.save();
       card.innerHTML = resultCard(p, kid, pct, S.ok + ' juste' + (S.ok > 1 ? 's' : '') + ' · ' + S.miss + ' erreur' + (S.miss > 1 ? 's' : ''), lv, EAR_HINTS[mode], res, coins);
       document.getElementById('tagain').onclick = () => A.route();
@@ -321,7 +321,7 @@
       const acc = S.exp ? Math.max(0, S.hit - S.extra * 0.5) / S.exp : 0, pct = Math.round(acc * 100);
       const lv = levelUp(p, 'rythme', acc);
       const res = ctx.step ? PA().report('rythme', 'tape', { acc }) : null;
-      let coins = 0; if (kid && !ctx.step) { coins = Math.round(acc * 8); p.coins += coins; }
+      let coins = 0; if (!ctx.step) { coins = Math.round(acc * 8); A.addCoins(p, coins); }
       A.save();
       card.innerHTML = resultCard(p, kid, pct, S.hit + ' notes bien placées sur ' + S.exp + (S.extra ? ' · ' + S.extra + ' en trop' : ''), lv, RHY_HINTS, res, coins);
       document.getElementById('tagain').onclick = () => A.route();

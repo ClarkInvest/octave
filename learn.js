@@ -242,7 +242,7 @@
       p.lessons = p.lessons || {};
       const prev = p.lessons[id];
       if (!prev || score >= prev.score) p.lessons[id] = { score, total };
-      let coins = 0; if (kid) { coins = score * 2; p.coins += coins; }
+      let coins = score * 2; A.addCoins(p, coins);
       A.save();
       const great = score >= total * 0.75;
       const next = L ? LESSONS[LESSONS.indexOf(L) + 1] : null;

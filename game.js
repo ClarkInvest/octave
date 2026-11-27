@@ -5,9 +5,9 @@
 
   function Game(param) {
     const parts = String(param || '').split('-'), concert = parts[1] === 'concert';
-    const song = MU.hands(MU.song(parts[0]) || MU.SONGS[0]);
+    const song = MU.fingers(MU.hands(MU.song(parts[0]) || MU.SONGS[0]));
     const p = A.prof(), kid = A.isKid(), DB = A.DB;
-    const st = { mode: concert ? 'defi' : (DB.input.gameMode || 'tranquille'), speed: DB.input.gameSpeed || 1, metro: DB.input.metro !== false };
+    const st = { mode: concert ? 'defi' : (DB.input.gameMode || 'tranquille'), speed: DB.input.gameSpeed || 1, metro: DB.input.metro !== false, fingers: DB.input.fingers !== false, accomp: !!DB.input.accomp };
     const back = A.prevHash && A.prevHash.indexOf('jeu') !== 0 ? '#' + A.prevHash : '#morceaux';
     const micro = () => DB.input.source === 'micro';
 
@@ -20,10 +20,17 @@
     /* réglages de travail, gardés par joueur et par morceau */
     p.practice = p.practice || {};
     const pr = Object.assign({ hand: 'tout', from: 1, to: totalBars, loop: false, ramp: false }, concert ? {} : p.practice[song.id] || {});
-    if (!both) pr.hand = 'tout';
+    const others = DB.profiles.filter((x) => x.id !== p.id);
+    if (!both || (pr.hand === 'duo' && !others.length)) pr.hand = 'tout';
+    if (!pr.duo || !DB.profiles.find((x) => x.id === pr.duo.d) || !DB.profiles.find((x) => x.id === pr.duo.g)) {
+      const kidP = DB.profiles.find((x) => x.mode === 'enfant'), adultP = DB.profiles.find((x) => x.mode !== 'enfant' && x !== kidP);
+      pr.duo = { d: (kidP || p).id, g: (adultP && adultP.id !== (kidP || p).id ? adultP : others[0] || p).id };
+    }
+    const duo = () => pr.hand === 'duo';
+    const prof = (id) => DB.profiles.find((x) => x.id === id) || p;
     pr.from = Math.max(1, Math.min(totalBars, pr.from)); pr.to = Math.max(pr.from, Math.min(totalBars, pr.to || totalBars));
     const practicing = () => pr.from > 1 || pr.to < totalBars || pr.hand !== 'tout';
-    const savePr = () => { p.practice[song.id] = { hand: pr.hand, from: pr.from, to: pr.to, loop: pr.loop, ramp: pr.ramp }; A.save(); };
+    const savePr = () => { p.practice[song.id] = { hand: pr.hand, from: pr.from, to: pr.to, loop: pr.loop, ramp: pr.ramp, duo: pr.duo }; A.save(); };
 
     /* tessiture du clavier : octaves entières autour du morceau */
     const ms = song.notes.map((n) => n.m);
@@ -41,10 +48,13 @@
     function build() {
       t0 = barStart(pr.from); const t1 = pickup + pr.to * bar;
       const mine = pr.hand === 'droite' ? 'd' : pr.hand === 'gauche' ? 'g' : null;
-      view = song.notes.filter((n) => n.t >= t0 - 1e-6 && n.t < t1 - 1e-6).map((n) => ({ m: n.m, t: +(n.t - t0).toFixed(4), d: n.d, h: n.h, auto: !!mine && n.h !== mine }));
+      view = song.notes.filter((n) => n.t >= t0 - 1e-6 && n.t < t1 - 1e-6).map((n) => ({ m: n.m, t: +(n.t - t0).toFixed(4), d: n.d, h: n.h, f: n.f, auto: !!mine && n.h !== mine }));
+      /* accompagnement en fond (morceaux à une main) : joué par l'appli, ni affiché ni noté */
+      if (st.accomp && !both) MU.accomp(song).forEach((n) => { if (n.t >= t0 - 1e-6 && n.t < t1 - 1e-6) view.push({ m: n.m, t: +(n.t - t0).toFixed(4), d: Math.min(n.d, t1 - n.t), h: 'g', vel: n.vel, auto: true, acc: true }); });
+      view.sort((a, b) => a.t - b.t || a.m - b.m);
       vlen = view.reduce((a, n) => Math.max(a, n.t + n.d), 0);
       const group = (list) => { const out = []; list.forEach((n) => { const g = out.length && Math.abs(out[out.length - 1].t - n.t) < 1e-6 ? out[out.length - 1] : null; if (g) g.notes.push(n); else out.push({ t: n.t, notes: [n] }); }); return out; };
-      groups = group(view.filter((n) => !n.auto)); sgroups = group(view);
+      groups = group(view.filter((n) => !n.auto)); sgroups = group(view.filter((n) => !n.acc));
     }
     build();
 
@@ -119,7 +129,8 @@
       document.getElementById('speed').textContent = Math.round(st.speed * 100) + ' %';
       const w = document.getElementById('gwork');
       const bits = [];
-      if (pr.hand !== 'tout') bits.push(pr.hand === 'droite' ? 'Main droite' : 'Main gauche');
+      if (duo()) bits.push('Duo : ' + prof(pr.duo.d).name + ' à droite, ' + prof(pr.duo.g).name + ' à gauche');
+      else if (pr.hand !== 'tout') bits.push(pr.hand === 'droite' ? 'Main droite' : 'Main gauche');
       if (pr.from > 1 || pr.to < totalBars) bits.push(pr.from === pr.to ? 'mesure ' + pr.from : 'mesures ' + pr.from + ' à ' + pr.to);
       if (pr.loop) bits.push(pr.ramp ? 'en boucle, vitesse qui monte' : 'en boucle');
       w.hidden = !bits.length; w.textContent = bits.join(' · ');
@@ -148,7 +159,7 @@
       if (to <= from) return;
       view.forEach((n) => {
         if (!n.auto) return;
-        if (n.t >= from && n.t < to) { if (!micro()) { E.sound.enabled = true; E.sound.play(n.m, 70); sounding.add(n.m); } if (keyEls[n.m]) keyEls[n.m].classList.add('demo'); }
+        if (n.t >= from && n.t < to) { if (!micro()) { E.sound.enabled = true; E.sound.play(n.m, n.vel || 70); sounding.add(n.m); } if (!n.acc && keyEls[n.m]) keyEls[n.m].classList.add('demo'); }
         const end = n.t + n.d * 0.92;
         if (end >= from && end < to) { if (sounding.has(n.m)) { E.sound.stop(n.m); sounding.delete(n.m); } if (keyEls[n.m]) keyEls[n.m].classList.remove('demo'); }
       });
@@ -171,7 +182,7 @@
         /* un nom par main et par accord : la note la plus grave */
         const lowOf = (h) => { const ns = g.notes.filter((n) => !n.auto && (!both || n.h === h)); return ns.length ? Math.min.apply(null, ns.map((n) => n.m)) : null; };
         const low = { d: lowOf('d'), g: lowOf('g') };
-        g.notes.forEach((n) => notes.push({ m: n.m, d: n.d, h: n.h, x,
+        g.notes.forEach((n) => notes.push({ m: n.m, d: n.d, h: n.h, x, finger: st.fingers && !n.auto && gi >= cur ? n.f : 0,
           color: gi < cur || n.auto ? COL.muted : gi === cur ? COL.accent : COL.text,
           label: !n.auto && gi >= cur && gi < cur + 6 && n.m === (both ? low[n.h] : low.d) ? MU.natName(n.m) : '' }));
         if (gi > 0) { const a = measureOf(sgroups[gi - 1].t + t0), b = measureOf(g.t + t0); if (b !== a) bars.push({ x: x - dx / 2, n: b }); }
@@ -213,7 +224,9 @@
       }
       const cur = run && run.kind === 'play' && st.mode === 'tranquille' ? run.gi : -1;
       const curT = cur >= 0 && groups[cur] ? groups[cur].t : null;
+      const style = (p.wear || {}).notes;
       view.forEach((n) => {
+        if (n.acc) return;
         const sit = curT !== null && !n.auto && !n.hit && n.t <= beat && Math.abs(curT - n.t) < 1e-6; /* note attendue : posée sur la ligne */
         const yBottom = sit ? hitY : hitY - (n.t - beat) * ppb, h = Math.max(14, n.d * ppb - 6), y = yBottom - h;
         if (yBottom < -10 || y > H) return;
@@ -224,6 +237,10 @@
           return;
         }
         let fill = kid ? COL.alt : COL.surf2, ink = kid ? '#FFFFFF' : COL.text, alpha = 1;
+        /* couleurs achetées dans la boutique */
+        if (style === 'notes-rainbow') { fill = 'hsl(' + Math.round((n.m % 12) * 30) + ',85%,58%)'; ink = '#111'; }
+        else if (style === 'notes-gold') { const gr = ctx2.createLinearGradient(0, y, 0, yBottom); gr.addColorStop(0, '#FFE58A'); gr.addColorStop(1, '#D99A00'); fill = gr; ink = '#3A2800'; }
+        else if (style === 'notes-neon') { fill = n.m % 2 ? '#3DF5D2' : '#C86BFF'; ink = '#120C2C'; }
         if (n.hit) { fill = COL.good; alpha = 0.35; } else if (n.miss) { fill = COL.bad; alpha = 0.35; }
         else if ((curT !== null && Math.abs(curT - n.t) < 1e-6) || (st.mode === 'defi' && run && Math.abs(n.t - beat) < 0.5)) { fill = COL.accent; ink = css('--on-accent'); }
         ctx2.globalAlpha = alpha; ctx2.fillStyle = fill;
@@ -231,6 +248,12 @@
         if (!n.hit && !n.miss && fill !== COL.accent && !kid) { ctx2.strokeStyle = COL.line; ctx2.lineWidth = 1; ctx2.stroke(); }
         ctx2.globalAlpha = 1;
         if (h > 22 && w > 18 && !n.hit) { ctx2.fillStyle = ink; ctx2.font = '600 ' + (w > 34 ? 12 : 10) + 'px ' + (kid ? 'Rubik' : 'Inter') + ', sans-serif'; ctx2.textAlign = 'center'; ctx2.fillText(MU.natName(n.m), x + w / 2, yBottom - 8); }
+        /* doigté : petit rond en haut de la note */
+        if (st.fingers && n.f && h > 40 && w > 16 && !n.hit && !n.miss) {
+          const r = Math.min(10, w / 2.6), cx = x + w / 2, cy = y + r + 4;
+          ctx2.globalAlpha = 0.95; ctx2.fillStyle = COL.bg; ctx2.beginPath(); ctx2.arc(cx, cy, r, 0, 7); ctx2.fill();
+          ctx2.globalAlpha = 1; ctx2.fillStyle = COL.text; ctx2.font = '700 ' + Math.round(r * 1.2) + 'px Inter, sans-serif'; ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText(String(n.f), cx, cy + 0.5); ctx2.textBaseline = 'alphabetic';
+        }
       });
     }
     function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
@@ -268,7 +291,10 @@
       const open = practicing() || pr.loop;
       const seg = (key, val, label) => '<button data-' + key + '="' + val + '" aria-pressed="' + (pr[key === 'ph' ? 'hand' : key] === val) + '">' + label + '</button>';
       return '<details class="g-workbox"' + (open ? ' open' : '') + '><summary><span class="label">' + (kid ? 'S\'entraîner sur un bout' : 'Travailler') + '</span><span class="help">' + (both ? 'main par main, ' : '') + 'un passage, en boucle</span></summary>' +
-        (both ? '<div class="label">Main</div><div class="seg" role="group" aria-label="Main à jouer">' + seg('ph', 'tout', 'Les deux') + seg('ph', 'droite', 'Droite') + seg('ph', 'gauche', 'Gauche') + '</div>' +
+        (both ? '<div class="label">Main</div><div class="seg" role="group" aria-label="Main à jouer">' + seg('ph', 'tout', 'Les deux') + seg('ph', 'droite', 'Droite') + seg('ph', 'gauche', 'Gauche') + (others.length ? seg('ph', 'duo', 'Duo') : '') + '</div>' +
+          (duo() ? '<div class="duo-pick"><label>Main droite <select id="gduod">' + DB.profiles.map((x) => '<option value="' + x.id + '"' + (x.id === pr.duo.d ? ' selected' : '') + '>' + A.esc(x.name) + '</option>').join('') + '</select></label>' +
+            '<label>Main gauche <select id="gduog">' + DB.profiles.map((x) => '<option value="' + x.id + '"' + (x.id === pr.duo.g ? ' selected' : '') + '>' + A.esc(x.name) + '</option>').join('') + '</select></label>' +
+            '<div class="help">' + (micro() ? 'Le micro n\'entend qu\'une note à la fois : pour jouer à deux, utilisez le câble ou le clavier à l\'écran.' : 'Chacun joue sa main sur le même clavier. Chacun a son score à la fin !') + '</div></div>' : '') +
           (pr.hand !== 'tout' && !kid ? '<div class="help">' + (micro() ? 'L\'autre main s\'affiche en pointillés. Avec le micro, l\'appli ne la joue pas, pour ne pas fausser l\'écoute.' : 'L\'appli joue l\'autre main pour vous (en pointillés).') + '</div>' : '') : '') +
         '<div class="label">Passage</div><div class="row g-bars"><span class="help">Mesures</span><button class="icon-btn" data-bar="from:-1" aria-label="Commencer une mesure plus tôt">−</button><b id="gfrom">' + pr.from + '</b><button class="icon-btn" data-bar="from:1" aria-label="Commencer une mesure plus tard">+</button>' +
           '<span class="help">à</span><button class="icon-btn" data-bar="to:-1" aria-label="Finir une mesure plus tôt">−</button><b id="gto">' + pr.to + '</b><button class="icon-btn" data-bar="to:1" aria-label="Finir une mesure plus tard">+</button><span class="help">sur ' + totalBars + '</span></div>' +
@@ -281,6 +307,9 @@
     function bindWork() {
       const changed = () => { savePr(); build(); setControls(); ready(true); };
       over.querySelectorAll('[data-ph]').forEach((b) => b.onclick = () => { pr.hand = b.dataset.ph; changed(); });
+      const dd = document.getElementById('gduod'), dg = document.getElementById('gduog');
+      if (dd) dd.onchange = () => { pr.duo.d = dd.value; savePr(); setControls(); };
+      if (dg) dg.onchange = () => { pr.duo.g = dg.value; savePr(); setControls(); };
       over.querySelectorAll('[data-bar]').forEach((b) => b.onclick = () => {
         const [k, d] = b.dataset.bar.split(':'); pr[k] = Math.max(1, Math.min(totalBars, pr[k] + +d));
         if (k === 'from' && pr.to < pr.from) pr.to = pr.from; if (k === 'to' && pr.from > pr.to) pr.from = pr.to;
@@ -305,12 +334,18 @@
         '<div class="say-row" style="justify-content:center;margin:4px 0 8px"><div class="h2">' + (st.mode === 'tranquille' ? 'La musique attend la bonne note' : 'Joue en rythme, avec le métronome') + '</div>' + A.sayBtn((st.mode === 'tranquille' ? 'Mode tranquille : la musique attend la bonne note. ' : 'Mode défi : joue en rythme, avec le métronome. ') + song.title + '. ' + song.desc) + '</div>' +
         '<div class="help">' + A.esc(song.desc) + (best ? ' Record : ' + stars(best.stars) + ' ' + best.acc + ' %.' : '') + '</div>' +
         (concert ? '<div class="help step-rule">Pour valider le concert : au moins 1 étoile en mode Défi. Tu peux ralentir le tempo avec − .</div>' : '') +
-        (st.mode === 'defi' ? '<label class="row" style="margin-top:10px;font-size:14px"><input type="checkbox" id="gmetro"' + (st.metro ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:var(--accent)"> Métronome</label>' : '') +
+        '<div class="g-opts">' +
+          (st.mode === 'defi' ? '<label class="row"><input type="checkbox" id="gmetro"' + (st.metro ? ' checked' : '') + '> Métronome</label>' : '') +
+          '<label class="row"><input type="checkbox" id="gfing"' + (st.fingers ? ' checked' : '') + '> Doigtés</label>' +
+          (!both ? '<label class="row"><input type="checkbox" id="gaccomp"' + (st.accomp ? ' checked' : '') + '> Accompagnement' + (micro() ? ' <span class="help">(pas au micro)</span>' : '') + '</label>' : '') +
+        '</div>' +
         (empty ? '<div class="help step-rule">Rien à jouer pour cette main dans ce passage : choisissez l\'autre main ou d\'autres mesures.</div>' : '') +
         '<button class="btn" id="ggo" style="margin-top:14px"' + (empty ? ' disabled' : '') + '>' + A.ICON.play + (kid ? ' C\'est parti' : ' Jouer') + '</button>' +
         (DB.input.source !== 'ecran' && !A.inputOn() ? '<div class="help" style="margin-top:10px">Votre clavier n\'est pas connecté : <a href="#clavier">le connecter</a>, ou touchez le clavier à l\'écran.</div>' : '') +
         (concert ? '' : workPanel()) + '</div>';
       const mt = document.getElementById('gmetro'); if (mt) mt.onchange = () => { st.metro = mt.checked; DB.input.metro = st.metro; A.save(); };
+      const gf = document.getElementById('gfing'); gf.onchange = () => { st.fingers = gf.checked; DB.input.fingers = st.fingers; A.save(); staffKey = ''; drawStaff(0); draw(); };
+      const ga = document.getElementById('gaccomp'); if (ga) ga.onchange = () => { st.accomp = ga.checked; DB.input.accomp = st.accomp; A.save(); build(); staffKey = ''; drawStaff(0); draw(); };
       document.getElementById('ggo').onclick = () => { A.hush(); start(); };
       bindWork();
       if (!keepScroll && !saidReady && A.sayAuto() && !E.mic.running) { saidReady = true; setTimeout(() => A.say(song.title + '. ' + (st.mode === 'tranquille' ? 'La musique attend la bonne note.' : 'Joue en rythme.')), 350); }
@@ -323,7 +358,7 @@
       reset(); over.hidden = true; over.innerHTML = '';
       await new Promise((res) => A.countdown(res));
       if (!document.getElementById('gover')) return;
-      run = { kind: 'play', beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, combo: 0, best: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], fxs: [], paused: false, pressed: new Set(), lastTick: -99, pass: 1, passes: [] };
+      run = { kind: 'play', beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, combo: 0, best: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], fxs: [], hg: {}, hw: { d: 0, g: 0 }, paused: false, pressed: new Set(), lastTick: -99, pass: 1, passes: [] };
       document.getElementById('gpause').hidden = false;
       last = performance.now(); loop(last);
     }
@@ -345,7 +380,7 @@
     function stepDemo(db) {
       const prev = run.beat; run.beat += db;
       view.forEach((n) => {
-        if (n.t >= prev && n.t < run.beat) { E.sound.enabled = true; E.sound.play(n.m, n.auto ? 70 : 90); if (keyEls[n.m]) keyEls[n.m].classList.add('demo'); }
+        if (n.t >= prev && n.t < run.beat) { E.sound.enabled = true; E.sound.play(n.m, n.vel || (n.auto ? 70 : 90)); if (!n.acc && keyEls[n.m]) keyEls[n.m].classList.add('demo'); }
         const end = n.t + n.d * 0.9;
         if (end >= prev && end < run.beat) { E.sound.stop(n.m); if (keyEls[n.m]) keyEls[n.m].classList.remove('demo'); }
       });
@@ -394,6 +429,12 @@
     }
 
     /* fin d'un passage : en boucle on repart (et on accélère si c'est réussi), sinon résultat */
+    /* en duo : à quelle main attribuer une fausse note ? celle dont les notes attendues sont du même côté */
+    function handOf(m, near) {
+      const L = near.filter((n) => n.h === 'g').map((n) => n.m), R = near.filter((n) => n.h === 'd').map((n) => n.m);
+      const split = L.length && R.length ? (Math.max.apply(null, L) + Math.min.apply(null, R)) / 2 : 60;
+      return m < split ? 'g' : 'd';
+    }
     /* passages difficiles : erreurs comptées par mesure */
     function markWeak(t) { if (!run) return; run.weak = run.weak || {}; const k = measureOf(t + t0); run.weak[k] = (run.weak[k] || 0) + 1; }
     function stuckSpot(r) {
@@ -427,7 +468,7 @@
       else if (pr.ramp && acc >= 0.9 && st.speed >= 1) msg += kid ? ' · à fond !' : ' · vitesse normale atteinte';
       react(acc >= 0.9 ? 'happy' : 'idle', msg);
       autoOff(); reset();
-      tune(run); Object.assign(run, { beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], pressed: new Set(), lastTick: -99, pass: run.pass + 1 });
+      tune(run); Object.assign(run, { beat: startBeat(), autoBeat: startBeat(), gi: 0, good: 0, wrong: 0, perfect: 0, okay: 0, close: 0, lateN: 0, missN: 0, offs: [], hg: {}, hw: { d: 0, g: 0 }, pressed: new Set(), lastTick: -99, pass: run.pass + 1 });
     }
 
     /* entrée des notes */
@@ -451,12 +492,12 @@
         if (g.notes.some((n) => n.m === ev.midi)) {
           run.pressed.add(ev.midi);
           if (g.notes.every((n) => run.pressed.has(n.m) || E.held.has(n.m))) {
-            g.notes.forEach((n) => { n.hit = true; n.q = 1; });
+            g.notes.forEach((n) => { n.hit = true; n.q = 1; run.hg[n.h] = (run.hg[n.h] || 0) + 1; });
             run.good += g.notes.length; run.combo++; run.best = Math.max(run.best, run.combo);
             run.gi++; run.pressed = new Set();
             if (run.combo % (kid ? 5 : 10) === 0) react('happy', CHEERS[Math.floor(Math.random() * CHEERS.length)]);
           }
-        } else if (!view.some((n) => n.auto && n.m === ev.midi && Math.abs(n.t - run.beat) < 1)) { run.wrong++; run.combo = 0; markWeak(g.t); react('oops', kid ? 'Presque ! Regarde la touche qui brille' : null); }
+        } else if (!view.some((n) => n.auto && n.m === ev.midi && Math.abs(n.t - run.beat) < 1)) { run.wrong++; run.hw[handOf(ev.midi, g.notes)]++; run.combo = 0; markWeak(g.t); react('oops', kid ? 'Presque ! Regarde la touche qui brille' : null); }
       } else {
         /* moment où la touche a vraiment été jouée, retard de l'entrée déduit */
         const b = run.beat - lat() / spb(), S = spb();
@@ -477,7 +518,7 @@
         if (late) { late.miss = false; late.hit = true; late.late = true; late.q = 0.4; run.missN--; run.lateN++; fx(late.m, 'En retard', 'soft'); return; }
         /* même touche qu'une note toute proche (doublon du micro, touche rejouée) : on ignore */
         if (view.some((n) => n.m === ev.midi && Math.abs(n.t - b) * S < 0.7)) return;
-        run.wrong++; run.combo = 0; markWeak(b); fx(ev.midi, 'Fausse note', 'bad');
+        run.wrong++; run.hw[handOf(ev.midi, view.filter((n) => !n.auto && Math.abs(n.t - b) * S < 1))]++; run.combo = 0; markWeak(b); fx(ev.midi, 'Fausse note', 'bad');
       }
     });
     A.onLeave(offInput);
@@ -506,12 +547,22 @@
       }
       const nStars = acc >= 95 ? 3 : acc >= 80 ? 2 : acc >= 60 ? 1 : 0;
       const work = practicing();
+      /* statistiques pour les trophées */
+      const T = window.Trophies, sts = p.stats = p.stats || {};
+      sts.bestCombo = Math.max(sts.bestCombo || 0, r.best || 0);
+      if (!work && st.mode === 'defi' && nStars >= 2) sts.defi2 = true;
+      if (!work && st.mode === 'defi' && acc === 100) sts.perfect = true;
+      if (!work && both && nStars >= 1) sts.twoHands = true;
+      if (nStars >= 1 && (song.hand === 'gauche' || pr.hand === 'gauche')) sts.leftHand = true;
+      if (fromLoop) sts.loops = Math.max(sts.loops || 0, r.passes.length);
+      if (T) T.markDay(p);
+      if (duo()) { finishDuo(r); return; }
       const spot = !fromLoop && !concert ? stuckSpot(r) : null;
       p.songs = p.songs || {};
       const prev = p.songs[song.id];
       const record = !work && (!prev || nStars > prev.stars || (nStars === prev.stars && acc > prev.acc));
       if (record) p.songs[song.id] = { stars: nStars, acc, mode: st.mode };
-      let coins = 0; if (kid && !work) { coins = nStars * 10 + (st.mode === 'defi' ? 5 : 0); p.coins += coins; }
+      let coins = 0; if (!work) { coins = nStars * 10 + (st.mode === 'defi' ? 5 : 0); A.addCoins(p, coins); }
       A.save();
       const res = !work && window.Path ? window.Path.report('morceau', song.id, { stars: nStars, mode: st.mode }) : null;
       const detail = fromLoop && r.passes.length ? r.passes.length + ' tour' + (r.passes.length > 1 ? 's' : '') + ' : ' + r.passes.map((x) => x + ' %').join(' · ') + ' · vitesse ' + Math.round(st.speed * 100) + ' %'
@@ -530,6 +581,36 @@
       const gs = document.getElementById('gstuck');
       if (gs) gs.onclick = () => { Object.assign(pr, { from: spot.from, to: spot.to, loop: true, ramp: true }); savePr(); setSpeed(Math.max(0.4, Math.min(0.8, st.speed * 0.8))); build(); setControls(); ready(); };
       if (nStars >= 2) react('happy', kid ? 'Quelle star !' : 'Belle interprétation');
+      const fxw = (p.wear || {}).fx; if (T && fxw && nStars >= 2) T.celebrate({ 'fx-confetti': 'confetti', 'fx-stars': 'stars', 'fx-fireworks': 'fireworks' }[fxw]);
+      if (T) setTimeout(() => T.check(), 1300);
+    }
+
+    /* résultat d'un duo : un score par joueur, des pièces pour chacun */
+    function finishDuo(r) {
+      const T = window.Trophies;
+      const side = (h) => {
+        const ns = own().filter((n) => n.h === h);
+        let a;
+        if (st.mode === 'tranquille') { const g = r.hg[h] || 0, w = r.hw[h] || 0; a = g + w ? g / (g + w) : 0; }
+        else a = ns.length ? ns.reduce((t, n) => t + (n.q || 0), 0) / ns.length : 0;
+        const pct = Math.round(a * 100), sN = pct >= 95 ? 3 : pct >= 80 ? 2 : pct >= 60 ? 1 : 0;
+        const who = prof(h === 'd' ? pr.duo.d : pr.duo.g), coins = sN * 5 + 5;
+        A.addCoins(who, coins); who.stats = who.stats || {}; who.stats.duo = true; if (T) T.markDay(who);
+        return { who, pct, sN, coins, h };
+      };
+      const R = side('d'), L = side('g');
+      A.save();
+      [R.who, L.who].forEach((w) => { if (T && w !== p) T.check(w, true); });
+      const team = Math.round((R.pct + L.pct) / 2);
+      const col = (x) => '<div class="duo-col"><div class="g-res-mascot" style="color:var(--text)">' + M.svg(x.who.mascot, x.sN >= 2 ? 'happy' : 'idle', x.who.wear || null) + '</div><div class="label">' + A.esc(x.who.name) + '</div><div class="help">' + (x.h === 'd' ? 'Main droite' : 'Main gauche') + '</div>' +
+        '<div class="g-stars" style="font-size:22px">' + stars(x.sN) + '</div><div class="h2">' + x.pct + ' %</div><div class="help">+' + x.coins + ' pièces</div></div>';
+      over.hidden = false; placeOver();
+      over.innerHTML = '<div class="g-card"><div class="eyebrow">Duo</div><div class="h2" style="margin-bottom:8px">' + (team >= 80 ? 'Bravo l\'équipe !' : team >= 60 ? 'Joli duo !' : 'On recommence ensemble ?') + '</div>' +
+        '<div class="duo-res">' + col(R) + col(L) + '</div>' +
+        '<div class="row" style="margin-top:12px;justify-content:center;flex-wrap:wrap"><button class="btn" id="gagain">Rejouer</button><a class="btn ghost" href="' + back + '">' + (back === '#morceaux' ? 'Autres morceaux' : 'Retour') + '</a></div></div>';
+      document.getElementById('gagain').onclick = () => ready();
+      react('happy', team >= 80 ? 'Quelle équipe !' : 'Bien joué tous les deux');
+      if (T) { T.celebrate(team >= 60 ? 'confetti' : null); setTimeout(() => T.check(), 1300); }
     }
 
     ready();

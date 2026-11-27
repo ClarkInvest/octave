@@ -48,7 +48,7 @@ window.Music = (function () {
       desc: 'Le thème de la 9e symphonie, sur cinq notes de la main droite.',
       rh: 'E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4:1.5 D4:0.5 D4:2 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4:1.5 C4:0.5 C4:2' },
     { id: 'jingle', title: 'Jingle Bells', by: 'J. Pierpont (1857)', level: 2, tempo: 110, kind: 'chanson',
-      desc: 'Le refrain de la chanson de Noël, celle qu\'on chante sur « Vive le vent ».',
+      desc: 'Le refrain de la chanson de Noël, celle qu\'on chante sur « Vive le vent ».', key: { tonic: 0, mode: 'maj' },
       rh: 'E4 E4 E4:2 E4 E4 E4:2 E4 G4 C4:1.5 D4:0.5 E4:4 F4 F4 F4:1.5 F4:0.5 F4 E4 E4 E4:0.5 E4:0.5 E4 D4 D4 E4 D4:2 G4:2' },
     { id: 'joie2', title: 'Ode à la joie à deux mains', by: 'Beethoven', level: 3, tempo: 92, kind: 'classique',
       desc: 'Le thème à droite, les basses Do et Sol à gauche. Un vrai premier morceau à deux mains.',
@@ -113,6 +113,7 @@ window.Music = (function () {
         '<g stroke="' + col + '" stroke-width="' + (g * 0.28) + '"><line x1="' + (ax - g * 0.6) + '" x2="' + (ax + g * 0.6) + '" y1="' + (y - g * 0.25) + '" y2="' + (y - g * 0.5) + '"/><line x1="' + (ax - g * 0.6) + '" x2="' + (ax + g * 0.6) + '" y1="' + (y + g * 0.5) + '" y2="' + (y + g * 0.25) + '"/></g>';
     }
     if (n.label) out += '<text x="' + x + '" y="' + labelY + '" text-anchor="middle" font-size="' + (g * 1.15) + '" font-weight="600" fill="' + col + '">' + n.label + '</text>';
+    if (n.finger && n.fingerY) out += '<text x="' + x + '" y="' + n.fingerY + '" text-anchor="middle" font-size="' + (g * 1.05) + '" font-weight="700" font-style="italic" fill="' + col + '" opacity=".85">' + n.finger + '</text>';
     return out;
   }
   const fiveLines = (top, W, g, x0) => { let o = ''; for (let i = 0; i < 5; i++) o += '<line x1="' + (x0 || 0) + '" x2="' + W + '" y1="' + (top + i * g) + '" y2="' + (top + i * g) + '" stroke="currentColor" stroke-width="1" opacity=".55"/>'; return o; };
@@ -137,7 +138,7 @@ window.Music = (function () {
       out += barLines(opts.bars, top, topB + 4 * g, g);
       if (opts.cursorX) out += '<rect x="' + (opts.cursorX - 1.5) + '" y="' + (top - g * 1.6) + '" width="3" height="' + (topB + 5.6 * g - top) + '" rx="1.5" fill="var(--accent)"/>';
       const midLabel = top + 4 * g + sep / 2 + g * 0.45;
-      notes.forEach((n) => { out += n.h === 'g' ? noteSvg(n, 'fa', topB + 4 * g, g, H - g * 0.4) : noteSvg(n, 'sol', top + 4 * g, g, midLabel); });
+      notes.forEach((n) => { if (n.finger) n.fingerY = n.h === 'g' ? topB - g * 0.5 : top - g * 1.9; out += n.h === 'g' ? noteSvg(n, 'fa', topB + 4 * g, g, H - g * 0.4) : noteSvg(n, 'sol', top + 4 * g, g, midLabel); });
       return out + '</svg>';
     }
     const clef = opts.clef || 'sol', H = opts.height || top + 4 * g + 3 * g, bottomY = top + 4 * g;
@@ -146,10 +147,81 @@ window.Music = (function () {
     if (opts.clefShown !== false) out += clefPath(clef, 4, top, g);
     out += barLines(opts.bars, top, bottomY, g);
     if (opts.cursorX) out += '<rect x="' + (opts.cursorX - 1.5) + '" y="' + (top - g * 1.6) + '" width="3" height="' + (g * 7.2) + '" rx="1.5" fill="var(--accent)"/>';
-    notes.forEach((n) => { out += noteSvg(n, clef, bottomY, g, H - g * 0.4); });
+    notes.forEach((n) => { if (n.finger) n.fingerY = top - g * 1.9; out += noteSvg(n, clef, bottomY, g, H - g * 0.4); });
     return out + '</svg>';
   }
   const clefFor = (notes) => { const ms = notes.map((n) => n.m).sort((a, b) => a - b); return ms.length && ms[Math.floor(ms.length / 2)] < 57 ? 'fa' : 'sol'; };
+
+  /* ---------- Doigtés calculés (positions à cinq doigts) ----------
+     Pour chaque main, on cherche une position qui couvre les notes à venir sur cinq touches blanches,
+     et on ne la déplace que quand une note sort de la main. Main droite : pouce sur la note la plus grave
+     de la position ; main gauche : petit doigt sur la plus grave. */
+  function fingers(song) {
+    if (song._fing) return song;
+    hands(song);
+    ['d', 'g'].forEach((h) => {
+      const ns = song.notes.filter((n) => n.h === h).slice().sort((a, b) => a.t - b.t || a.m - b.m);
+      const grs = []; ns.forEach((n) => { const g = grs.length && Math.abs(grs[grs.length - 1].t - n.t) < 1e-6 ? grs[grs.length - 1] : null; if (g) g.push(n); else grs.push([n]); });
+      let pos = null;
+      const lo = (g) => Math.min.apply(null, g.map((n) => diat(n.m))), hi = (g) => Math.max.apply(null, g.map((n) => diat(n.m)));
+      grs.forEach((g, i) => {
+        if (pos === null || lo(g) < pos || hi(g) > pos + 4) {
+          let wlo = lo(g), whi = hi(g);
+          for (let k = i + 1; k < grs.length; k++) { const a = Math.min(wlo, lo(grs[k])), b = Math.max(whi, hi(grs[k])); if (b - a > 4) break; wlo = a; whi = b; }
+          pos = Math.max(whi - 4, Math.min(wlo, whi - 4 < wlo ? wlo : whi - 4));
+          if (whi - wlo > 4) pos = wlo;
+        }
+        g.forEach((n) => { const k = Math.max(0, Math.min(4, diat(n.m) - pos)); n.f = h === 'd' ? k + 1 : 5 - k; });
+        if (g.length > 1) { g.sort((a, b) => a.m - b.m); if (h === 'd') { g[0].f = Math.min(g[0].f, 1 + 0); } }
+      });
+    });
+    song._fing = true;
+    return song;
+  }
+
+  /* ---------- Accompagnement : une basse et un accord par mesure, choisis d'après la mélodie ---------- */
+  const PROF_MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+  const PROF_MIN = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  function keyOf(notes) {
+    const w = new Array(12).fill(0); notes.forEach((n) => { w[n.m % 12] += n.d; });
+    let best = { score: -1e9 };
+    for (let k = 0; k < 12; k++) [['maj', PROF_MAJ], ['min', PROF_MIN]].forEach(([mode, pr]) => {
+      let sc = 0; for (let i = 0; i < 12; i++) sc += w[(i + k) % 12] * pr[i];
+      if (sc > best.score) best = { score: sc, tonic: k, mode };
+    });
+    return best;
+  }
+  function accomp(song) {
+    if (song._acc) return song._acc;
+    const mel = song.notes, bar = song.bar || 4, pickup = song.pickup || 0, key = song.key || keyOf(mel), T = key.tonic;
+    /* accords de la tonalité : [degré, notes (classes), préférence] */
+    const deg = key.mode === 'maj'
+      ? [[0, [0, 4, 7], 0.35], [5, [5, 9, 0], 0.25], [7, [7, 11, 2], 0.3], [9, [9, 0, 4], 0.1], [2, [2, 5, 9], 0.05]]
+      : [[0, [0, 3, 7], 0.35], [5, [5, 8, 0], 0.25], [7, [7, 11, 2], 0.3], [8, [8, 0, 3], 0.1], [3, [3, 7, 10], 0.05]];
+    const out = []; let prev = null;
+    const nBars = Math.ceil((song.length - pickup) / bar);
+    for (let b = 0; b < nBars; b++) {
+      const t0 = pickup + b * bar, t1 = t0 + bar, inBar = mel.filter((n) => n.t < t1 - 1e-6 && n.t + n.d > t0 + 1e-6);
+      if (!inBar.length) continue;
+      let best = null;
+      deg.forEach(([root, pcs, pref]) => {
+        const set = pcs.map((x) => (x + T) % 12); let sc = pref + (prev && prev.root === root ? 0.15 : 0);
+        inBar.forEach((n) => { const d = Math.min(n.t + n.d, t1) - Math.max(n.t, t0); if (set.includes(n.m % 12)) sc += d * (Math.abs(n.t - t0) < 1e-6 ? 1.5 : 1); else sc -= d * 0.5; });
+        if (!best || sc > best.sc) best = { sc, root, set };
+      });
+      prev = best;
+      /* basse entre Sol1 et Fa♯2 (audible sur un haut-parleur de téléphone), accord juste au-dessus, sous la mélodie */
+      const rootPc = (best.root + T) % 12, bass = 43 + ((rootPc - 7 + 12) % 12);
+      let chord = best.set.map((pc) => { let m = 48 + pc; while (m <= bass + 2) m += 12; return m; }).sort((a, c) => a - c);
+      const low = Math.min.apply(null, inBar.map((n) => n.m));
+      if (low <= Math.max.apply(null, chord) + 1) chord = []; /* la mélodie descend trop bas : la basse seule suffit */
+      out.push({ m: bass, t: t0, d: bar * 0.95, vel: 52, acc: true });
+      const half = bar === 3 ? [[1, 1], [2, 0.9]] : bar >= 4 ? [[0, 1.9], [2, 1.9]] : [[0, bar * 0.9]];
+      half.forEach(([o, d]) => { if (t0 + o < t1) chord.forEach((m) => out.push({ m, t: t0 + o, d, vel: 36, acc: true })); });
+    }
+    song._acc = out;
+    return out;
+  }
 
   /* aperçu des premières notes d'un morceau (cartes, import) : double portée si les deux mains jouent */
   function preview(song, o) {
@@ -160,5 +232,5 @@ window.Music = (function () {
     return staff({ notes, clef: clefFor(song.notes), width: o.width, height: o.height, gap: o.gap, top: o.top, label: o.label });
   }
 
-  return { SONGS, song: (id) => SONGS.find((s) => s.id === id), parse, parseNote, build, hands, hasBoth, staff, preview, clefFor, natName, diat, FR_NAT };
+  return { SONGS, song: (id) => SONGS.find((s) => s.id === id), parse, parseNote, build, hands, hasBoth, fingers, accomp, keyOf, staff, preview, clefFor, natName, diat, FR_NAT };
 })();

@@ -172,7 +172,7 @@
     if (s) {
       if (!PASS[s.type](r)) return { step: s, passed: false };
       p.path = p.path || {}; p.pathV = 2; p.path[s.id] = { at: Date.now() };
-      if (A.isKid()) p.coins += 10;
+      A.addCoins(p, 10);
       A.save();
       const next = current(p);
       A.toast(A.isKid() ? 'Étape validée ! +10 pièces' : 'Étape validée');
@@ -439,7 +439,7 @@
       let after = lvl;
       if (acc >= 0.9 && lvl < 5) after = lvl + 1; else if (acc < 0.6 && lvl > 1) after = lvl - 1;
       sk.lvl[kind] = after;
-      let coins = 0; if (kid && !step) { coins = Math.round(acc * 10); p.coins += coins; }
+      let coins = 0; if (!step) { coins = Math.round(acc * 10); A.addCoins(p, coins); }
       A.save();
       const res = step ? report('clavier', step.id, { acc }) : null;
       const lvlMsg = after > lvl ? (kid ? 'Niveau ' + after + ' débloqué ! ' : 'Vous passez au niveau ' + after + ' : ') + HINTS[kind][after - 1] + '.'

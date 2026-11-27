@@ -149,6 +149,7 @@
         desc: 'Importé depuis un fichier MIDI : ' + hand + (opts.melody ? ', une note à la fois' : '') + ', ' + passage + '.',
         n: built.notes.map((n) => [n.m, n.t, n.d, n.h === 'g' ? 1 : 0]), length: built.length, bar: file.beatsPerBar || 4, added: Date.now() };
       if (!add(rec)) return;
+      if (window.Trophies) setTimeout(() => window.Trophies.check(), 1200);
       A.toast((A.isKid() ? 'Morceau ajouté : ' : 'Morceau enregistré : ') + title);
       A.go('jeu-' + rec.id);
     }

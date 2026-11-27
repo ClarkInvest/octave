@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const A = window.App, E = window.Engine, MU = window.Music;
-  const BUILD = '0.8';
+  const BUILD = '0.9';
   const LOG_MAX = 200;
   const log = []; /* journal gardé tant que l'appli est ouverte */
 
@@ -31,6 +31,7 @@
       ['Câble MIDI pris en charge', E.midi.supported ? 'Oui' : 'Non'],
       ['Micro pris en charge', E.mic.supported ? 'Oui' : 'Non'],
       ['Disponible sans internet', navigator.serviceWorker && navigator.serviceWorker.controller ? 'Oui' : 'Pas encore'],
+      ['Sons de piano', E.sound.piano.ready ? Object.keys(E.sound.piano.buffers).length + ' échantillons chargés' : E.sound.real ? 'en cours de chargement' : 'synthé'],
       ['Délai compensé en Défi', ['micro', 'midi', 'ecran'].map((k) => ({ micro: 'micro', midi: 'câble', ecran: 'écran' }[k] + ' ' + Math.round((((DB.input.lat || {})[k]) != null ? DB.input.lat[k] : { micro: 0.13, midi: 0.02, ecran: 0.04 }[k]) * 1000) + ' ms')).join(' · ')],
       ['Progression enregistrée', storeKo + ' Ko'],
       ['Protégée contre l\'effacement', '…']
@@ -221,7 +222,7 @@
     card.innerHTML = '<div class="eyebrow">Tests et dépannage</div><div class="list"><a class="item" href="#diag" style="text-decoration:none"><span><span class="label">Diagnostic</span><br><span class="help">Câble MIDI, micro, lumières du Casio, sauvegarde</span></span>' + A.ICON.play + '</a></div>';
     const last = col.querySelector('.help:last-child');
     while (card.firstChild) col.insertBefore(card.firstChild, last);
-    if (last) last.textContent = 'Octave · version ' + BUILD;
+    if (last) last.innerHTML = 'Octave · version ' + BUILD + '<br>Sons de piano : Salamander Grand Piano, Alexander Holm (licence CC-BY 3.0)';
   };
   A.screens.diag = Diag;
   window.OctaveBuild = BUILD;

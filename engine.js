@@ -29,17 +29,56 @@ window.Engine = (function () {
       master.connect(comp); comp.connect(out); out.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume();
+    if (sound.real && !piano.loading) setTimeout(loadPiano, 0);
     return ctx;
+  }
+  /* ---------- Vrai piano : échantillons Salamander (Yamaha C5, CC-BY 3.0) un tous les trois demi-tons ---------- */
+  const SAMPLES = { 33: 'A1', 36: 'C2', 39: 'Ds2', 42: 'Fs2', 45: 'A2', 48: 'C3', 51: 'Ds3', 54: 'Fs3', 57: 'A3', 60: 'C4', 63: 'Ds4', 66: 'Fs4', 69: 'A4', 72: 'C5', 75: 'Ds5', 78: 'Fs5', 81: 'A5', 84: 'C6', 87: 'Ds6', 90: 'Fs6', 93: 'A6', 96: 'C7' };
+  const piano = { buffers: {}, loading: false, ready: false, failed: 0 };
+  function loadPiano() {
+    if (piano.loading || !ctx) return; piano.loading = true;
+    const keys = Object.keys(SAMPLES).map(Number);
+    /* d'abord le milieu du clavier, là où l'on joue le plus */
+    keys.sort((a, b) => Math.abs(a - 62) - Math.abs(b - 62));
+    let done = 0;
+    keys.forEach((m) => {
+      fetch('sounds/' + SAMPLES[m] + '.mp3').then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+        .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)))
+        .then((buf) => { piano.buffers[m] = buf; })
+        .catch(() => { piano.failed++; })
+        .finally(() => { if (++done === keys.length) piano.ready = Object.keys(piano.buffers).length > 0; });
+    });
+  }
+  function nearestSample(midi) {
+    let best = null, bd = 99;
+    for (const k in piano.buffers) { const d = Math.abs(k - midi); if (d < bd) { bd = d; best = +k; } }
+    return bd <= 4 ? best : null;
   }
   const sound = {
     enabled: true,
+    real: true, /* vrai piano (échantillons) ; sinon petit synthé */
+    piano,
     volume(v) { audio(); if (master) master.gain.value = v; },
     play(midi, vel) {
       if (!sound.enabled) return;
       const c = audio(); if (!c) return;
       sound.stop(midi, true);
-      /* pas plus de 8 notes à la fois : on éteint la plus ancienne */
-      if (voices.size >= 8) sound.stop(voices.keys().next().value, true);
+      if (voices.size >= 12) sound.stop(voices.keys().next().value, true);
+      if (sound.real) {
+        if (!piano.loading) loadPiano();
+        const s = nearestSample(midi);
+        if (s !== null) {
+          const t = c.currentTime + 0.003, v = Math.pow(0.18 + 0.82 * ((vel || 90) / 127), 1.6) * 0.95;
+          const src = c.createBufferSource(), g = c.createGain(), lp = c.createBiquadFilter();
+          src.buffer = piano.buffers[s]; src.playbackRate.value = Math.pow(2, (midi - s) / 12);
+          lp.type = 'lowpass'; lp.frequency.value = 1800 + 9000 * ((vel || 90) / 127);
+          g.gain.setValueAtTime(v, t);
+          src.connect(lp); lp.connect(g); g.connect(master);
+          src.start(t, 0.004); src.stop(t + 4.5);
+          voices.set(midi, { g, src });
+          return;
+        }
+      }
       const f = 440 * Math.pow(2, (midi - 69) / 12), t = c.currentTime + 0.005, v = 0.08 + 0.3 * ((vel || 90) / 127);
       const g = c.createGain(), lp = c.createBiquadFilter();
       lp.type = 'lowpass'; lp.frequency.setValueAtTime(Math.min(9000, f * 8), t); lp.frequency.exponentialRampToValueAtTime(Math.max(400, f * 2), t + 1.2);
@@ -59,8 +98,9 @@ window.Engine = (function () {
       try {
         const gp = vo.g.gain;
         if (gp.cancelAndHoldAtTime) gp.cancelAndHoldAtTime(t); else { gp.cancelScheduledValues(t); gp.setValueAtTime(Math.max(0.0008, gp.value), t); }
-        gp.setTargetAtTime(0, t, fast ? 0.012 : 0.07);
-        vo.o1.stop(t + (fast ? 0.12 : 0.5)); vo.o2.stop(t + (fast ? 0.12 : 0.5));
+        gp.setTargetAtTime(0, t, fast ? 0.012 : vo.src ? 0.11 : 0.07);
+        if (vo.src) vo.src.stop(t + (fast ? 0.12 : 0.9));
+        else { vo.o1.stop(t + (fast ? 0.12 : 0.5)); vo.o2.stop(t + (fast ? 0.12 : 0.5)); }
       } catch (e) { /* déjà arrêté */ }
       voices.delete(midi);
     },
