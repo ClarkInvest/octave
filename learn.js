@@ -183,6 +183,7 @@
       if (b.keys) return '<figure class="lesson-fig"><div class="kbd-mini">' + miniKeys(b.keys, b.from, b.to) + '</div><figcaption>' + b.cap + '</figcaption></figure>';
       if (b.staff) return '<figure class="lesson-fig"><div class="staff-box">' + st(b.staff, 'sol') + '</div><figcaption>' + b.cap + '</figcaption></figure>';
       if (b.staffFa) return '<figure class="lesson-fig"><div class="staff-box">' + st(b.staffFa, 'fa') + '</div><figcaption>' + b.cap + '</figcaption></figure>';
+      if (b.grand) return '<figure class="lesson-fig"><div class="staff-box grand-box">' + MU.staff({ notes: b.grand, grand: true, width: 340, height: 190, gap: 9, top: 26, sep: 34 }) + '</div><figcaption>' + b.cap + '</figcaption></figure>';
       return '';
     }).join('');
     const PA = window.Path, step = PA ? PA.stepFor(p, 'lire', id) : null, now = step && !PA.isDone(p, step);

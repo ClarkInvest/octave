@@ -143,12 +143,29 @@ window.Engine = (function () {
     },
     echo: false,
     out() { return midi.access && midi.outId ? midi.access.outputs.get(midi.outId) : null; },
-    light(note, on) {
+    /* lumières du Casio : les claviers LK allument les touches reçues sur le « canal de guidage »
+       (4 par défaut) ; la main gauche peut aller sur le canal juste en dessous (3), comme les leçons Casio */
+    lchannel: 0, lightVel: 40, lit: {},
+    light(note, on, hand) {
       const o = midi.out(); if (!o) return false;
-      const ch = (midi.channel - 1) & 0x0f;
-      try { o.send(on ? [0x90 | ch, note, 40] : [0x80 | ch, note, 0]); return true; } catch (e) { return false; }
+      let chn = midi.channel;
+      if (on) { if (hand === 'g' && midi.lchannel) chn = midi.lchannel; midi.lit[note] = chn; }
+      else { chn = midi.lit[note] || midi.channel; delete midi.lit[note]; }
+      const ch = (chn - 1) & 0x0f;
+      try { o.send(on ? [0x90 | ch, note, Math.max(1, Math.min(127, midi.lightVel || 40))] : [0x80 | ch, note, 0]); return true; } catch (e) { return false; }
     },
-    allOff() { for (let n = 21; n <= 108; n++) midi.light(n, false); }
+    /* lumière sur un canal précis (recherche du canal de guidage) */
+    lightOn(chn, note, on) {
+      const o = midi.out(); if (!o) return false;
+      const ch = (chn - 1) & 0x0f;
+      try { o.send(on ? [0x90 | ch, note, Math.max(1, midi.lightVel || 40)] : [0x80 | ch, note, 0]); return true; } catch (e) { return false; }
+    },
+    allOff() {
+      const o = midi.out(); midi.lit = {};
+      if (!o) return;
+      const chans = new Set([midi.channel, midi.lchannel || midi.channel]);
+      chans.forEach((c) => { for (let n = 21; n <= 108; n++) { try { o.send([0x80 | ((c - 1) & 0x0f), n, 0]); } catch (e) { /* ignoré */ } } try { o.send([0xb0 | ((c - 1) & 0x0f), 123, 0]); } catch (e) { /* ignoré */ } });
+    }
   };
 
   /* ---------- Micro ---------- */

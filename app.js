@@ -1,7 +1,7 @@
 /* Octave — application familiale d'apprentissage du piano (socle v0.1) */
 (function () {
   'use strict';
-  const VERSION = '0.10.1';
+  const VERSION = '0.11.0';
   const E = window.Engine, M = window.Mascots;
   const app = document.getElementById('app');
   const KEY = 'octave.v1';
@@ -13,10 +13,12 @@
       { id: 'leonard', name: 'Léonard', mode: 'enfant', theme: 'peche', mascot: 'volt', coins: 0, best: null }
     ],
     current: null,
-    input: { source: 'midi', outId: null, channel: 1, lights: true, echo: false, volume: 0.6, voiceFilter: true, countdown: 3, orient: 'auto' }
+    input: { source: 'midi', outId: null, channel: 4, lchan: true, lightVel: 40, chanV: 2, lights: true, echo: false, volume: 0.6, voiceFilter: true, countdown: 3, orient: 'auto' }
   };
   const clone = (o) => JSON.parse(JSON.stringify(o));
   let DB = load();
+  /* v0.11 : les Casio LK allument les touches reçues sur le canal 4 (et 3 pour la main gauche), pas sur le canal 1 */
+  if (DB.input.chanV !== 2) { if (DB.input.channel === 1) DB.input.channel = 4; DB.input.lchan = true; DB.input.chanV = 2; }
   function load() {
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
@@ -49,7 +51,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#FBF2EC';
     E.sound.volume(DB.input.volume);
-    E.midi.channel = DB.input.channel; E.midi.echo = DB.input.echo; E.mic.voiceFilter = DB.input.voiceFilter !== false; E.sound.real = DB.input.realPiano !== false;
+    E.midi.channel = DB.input.channel; E.midi.lchannel = DB.input.lchan !== false && DB.input.channel > 1 ? DB.input.channel - 1 : 0; E.midi.lightVel = DB.input.lightVel || 40; E.midi.echo = DB.input.echo; E.mic.voiceFilter = DB.input.voiceFilter !== false; E.sound.real = DB.input.realPiano !== false;
   }
 
   /* ---------- Outils ---------- */
@@ -480,7 +482,7 @@
     function midiPanel() {
       const m = E.midi;
       let body = '';
-      if (m.status === 'off') body = '<div class="help">Branchez le câble USB-MIDI : la prise <b>OUT</b> du Casio va dans l\'entrée du câble, et la prise <b>IN</b> du Casio dans sa sortie (pour allumer les touches).</div><button class="btn" id="mconnect">Connecter le clavier</button>';
+      if (m.status === 'off') body = '<div class="help">Branchez le câble USB-MIDI : la prise <b>OUT</b> du Casio va dans l\'entrée du câble, et la prise <b>IN</b> du Casio dans sa sortie (pour allumer les touches).</div><div class="row" style="flex-wrap:wrap"><a class="btn" href="#cable">Assistant de branchement</a><button class="btn ghost" id="mconnect">Connecter directement</button></div>';
       else if (m.status === 'unsupported') body = '<div class="help">Ce navigateur ne gère pas le MIDI. Ouvrez l\'appli dans <b>Chrome</b> sur la tablette ou le téléphone Android.</div>';
       else if (m.status === 'denied') body = '<div class="help">L\'accès au MIDI a été refusé. Autorisez-le dans les réglages du site de Chrome, puis réessayez.</div><button class="btn" id="mconnect">Réessayer</button>';
       else if (m.status === 'nodevice') body = '<div class="help">Aucun clavier détecté. Vérifiez le câble et que le Casio est allumé ; l\'appli le verra dès qu\'il sera branché.</div><button class="btn ghost" id="mconnect">Chercher à nouveau</button>';
@@ -489,9 +491,11 @@
           '<div class="list" style="background:var(--surf2)">' +
           '<div class="item"><div><div class="label">Allumer les touches du Casio</div><div class="help">Montre la note à jouer sur le clavier</div></div><button class="switch" role="switch" id="mlights" aria-label="Allumer les touches" aria-checked="' + DB.input.lights + '"></button></div>' +
           (m.outputs.length ? '<div class="item"><label class="label" for="mout">Sortie</label><select id="mout">' + m.outputs.map((o) => '<option value="' + esc(o.id) + '"' + (o.id === m.outId ? ' selected' : '') + '>' + esc(o.name) + '</option>').join('') + '</select></div>' +
-            '<div class="item"><label class="label" for="mch">Canal des lumières</label><select id="mch">' + Array.from({ length: 16 }, (_, i) => '<option' + (i + 1 === DB.input.channel ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></div>' : '') +
+            '<div class="item"><div><label class="label" for="mch">Canal des lumières</label><div class="help">Canal de guidage du Casio : 4 d\'origine</div></div><select id="mch">' + Array.from({ length: 16 }, (_, i) => '<option' + (i + 1 === DB.input.channel ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></div>' +
+            '<div class="item"><div><div class="label">Main gauche sur le canal ' + Math.max(1, DB.input.channel - 1) + '</div><div class="help">Comme les leçons Casio : la droite sur le canal de guidage, la gauche juste en dessous</div></div><button class="switch" role="switch" id="mlch" aria-label="Main gauche sur le canal du dessous" aria-checked="' + (DB.input.lchan !== false) + '"></button></div>' +
+            '<div class="item"><div><div class="label">Force des lumières</div><div class="help">Le Casio joue aussi les notes qui allument les touches : « Douce » les rend presque muettes</div></div><div class="seg small" role="group" aria-label="Force des lumières">' + [[1, 'Douce'], [40, 'Normale'], [90, 'Forte']].map(([v, l]) => '<button data-lv="' + v + '" aria-pressed="' + ((DB.input.lightVel || 40) === v) + '">' + l + '</button>').join('') + '</div></div>' : '') +
           '<div class="item"><div><div class="label">Son de l\'appli</div><div class="help">Utile si le haut-parleur du Casio est coupé</div></div><button class="switch" role="switch" id="mecho" aria-label="Son de l\'appli" aria-checked="' + DB.input.echo + '"></button></div></div>' +
-          (m.outputs.length ? '<button class="btn ghost small" id="mtest">Tester les lumières</button>' : '');
+          '<div class="row" style="flex-wrap:wrap">' + (m.outputs.length ? '<button class="btn ghost small" id="mtest">Tester les lumières</button>' : '') + '<a class="btn ghost small" href="#cable">Assistant de branchement</a></div>';
       }
       panel.innerHTML = '<div class="between"><div class="h2">Câble MIDI</div></div>' + body;
       const c = document.getElementById('mconnect');
@@ -501,12 +505,14 @@
       const ec = document.getElementById('mecho');
       if (ec) ec.onclick = () => { DB.input.echo = !DB.input.echo; E.midi.echo = DB.input.echo; save(); ec.setAttribute('aria-checked', DB.input.echo); };
       const mo = document.getElementById('mout'); if (mo) mo.onchange = () => { E.midi.outId = mo.value; DB.input.outId = mo.value; save(); };
-      const mc = document.getElementById('mch'); if (mc) mc.onchange = () => { DB.input.channel = +mc.value; E.midi.channel = DB.input.channel; save(); };
+      const mc = document.getElementById('mch'); if (mc) mc.onchange = () => { E.midi.allOff(); DB.input.channel = +mc.value; applyTheme(); save(); midiPanel(); };
+      const ml = document.getElementById('mlch'); if (ml) ml.onclick = () => { E.midi.allOff(); DB.input.lchan = DB.input.lchan === false; applyTheme(); save(); midiPanel(); };
+      panel.querySelectorAll('[data-lv]').forEach((b) => b.onclick = () => { DB.input.lightVel = +b.dataset.lv; applyTheme(); save(); midiPanel(); E.midi.light(60, true, 'd'); setTimeout(() => E.midi.light(60, false), 500); });
       const mt = document.getElementById('mtest');
       if (mt) mt.onclick = () => {
         E.midi.allOff();
-        [60, 64, 67, 72, 67, 64, 60].forEach((n, i) => { setTimeout(() => E.midi.light(n, true), i * 180); setTimeout(() => E.midi.light(n, false), i * 180 + 170); });
-        toast('Les touches Do, Mi, Sol devraient s\'allumer');
+        [48, 52, 55, 60, 64, 67, 72, 67, 64, 60].forEach((n, i) => { setTimeout(() => E.midi.light(n, true, n < 60 ? 'g' : 'd'), i * 200); setTimeout(() => E.midi.light(n, false), i * 200 + 190); });
+        toast('Do, Mi, Sol devraient s\'allumer, à gauche puis à droite. Sinon : l\'assistant cherche le bon canal');
       };
     }
     let micRaf = 0;
@@ -548,7 +554,7 @@
       const ms = typeof l === 'number' ? Math.round(l * 1000) : L0[src];
       box.innerHTML = '<div class="between"><div><div class="label">Délai compensé en mode Défi : ' + ms + ' ms</div><div class="help">' +
         (src === 'micro' ? 'Le micro entend chaque note avec un petit retard. ' : '') + 'Octave l\'ajuste tout seul à la fin de chaque partie en Défi. Si vous changez de place ou d\'appareil et que le rythme semble faux, réinitialisez-le.</div></div>' +
-        (typeof l === 'number' ? '<button class="btn small ghost" id="latreset">Réinitialiser</button>' : '') + '</div>';
+        '<div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><a class="btn small ghost" href="#cable-delai">Mesurer</a>' + (typeof l === 'number' ? '<button class="btn small ghost" id="latreset">Réinitialiser</button>' : '') + '</div></div>';
       const b = document.getElementById('latreset'); if (b) b.onclick = () => { delete DB.input.lat[src]; save(); latCard(); toast('Délai remis à sa valeur de départ'); };
     }
     latCard();

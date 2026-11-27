@@ -15,7 +15,7 @@ window.Music = (function () {
     const out = []; let t = 0;
     str.trim().split(/\s+/).forEach((tok) => {
       const [n, dd] = tok.split(':'); const d = dd ? parseFloat(dd) : 1;
-      if (n !== 'r') n.split('+').forEach((x) => out.push({ m: parseNote(x), t, d, h: h || 'd' }));
+      if (n !== 'r') n.split('+').forEach((x) => { const o = { m: parseNote(x), t, d, h: h || 'd' }; if (/^[A-G]b/.test(x)) o.fl = true; out.push(o); });
       t += d;
     });
     return { notes: out, length: t };
@@ -74,7 +74,7 @@ window.Music = (function () {
 
   /* ---------- Portée ---------- */
   const diat = (m) => (Math.floor(m / 12) - 1) * 7 + STEP[m % 12];
-  const natName = (m) => FR_NAT[STEP[m % 12]] + (SHARP[m % 12] ? '♯' : '');
+  const natName = (m, fl) => (fl && SHARP[m % 12] ? FR_NAT[STEP[(m + 1) % 12]] + '♭' : FR_NAT[STEP[m % 12]] + (SHARP[m % 12] ? '♯' : ''));
   const BOTTOM = { sol: 30, fa: 18 }; /* Mi3 (E4) et Sol1 (G2) sur la ligne du bas */
   const MIDDLE = { sol: 34, fa: 22 };
 
@@ -95,19 +95,23 @@ window.Music = (function () {
   /* une note (tête, hampe, crochet, point, dièse, lignes supplémentaires, nom) sur une portée dont la ligne du bas est à bottomY */
   function noteSvg(n, clef, bottomY, g, labelY) {
     let out = '';
-    const x = n.x, d = diat(n.m) - BOTTOM[clef], y = bottomY - d * g / 2;
+    const dm = n.fl ? diat(n.m + 1) : diat(n.m); /* un bémol s'écrit sur la note du dessus */
+    const x = n.x, d = dm - BOTTOM[clef], y = bottomY - d * g / 2;
     const col = n.color || 'currentColor', rx = g * 0.68, ry = g * 0.5;
     for (let k = -2; k >= d; k -= 2) out += '<line x1="' + (x - g * 1.1) + '" x2="' + (x + g * 1.1) + '" y1="' + (bottomY - k * g / 2) + '" y2="' + (bottomY - k * g / 2) + '" stroke="' + col + '" stroke-width="1.2"/>';
     for (let k = 10; k <= d; k += 2) out += '<line x1="' + (x - g * 1.1) + '" x2="' + (x + g * 1.1) + '" y1="' + (bottomY - k * g / 2) + '" y2="' + (bottomY - k * g / 2) + '" stroke="' + col + '" stroke-width="1.2"/>';
     const hollow = n.d >= 2;
     out += '<ellipse cx="' + x + '" cy="' + y + '" rx="' + rx + '" ry="' + ry + '" transform="rotate(-20 ' + x + ' ' + y + ')" fill="' + (hollow ? 'none' : col) + '" stroke="' + col + '" stroke-width="' + (hollow ? g * 0.18 : 1) + '"/>';
     if (n.d < 4) {
-      const up = diat(n.m) < MIDDLE[clef], sx = up ? x + rx - 0.6 : x - rx + 0.6, sy2 = up ? y - g * 3.4 : y + g * 3.4;
+      const up = dm < MIDDLE[clef], sx = up ? x + rx - 0.6 : x - rx + 0.6, sy2 = up ? y - g * 3.4 : y + g * 3.4;
       out += '<line x1="' + sx + '" x2="' + sx + '" y1="' + y + '" y2="' + sy2 + '" stroke="' + col + '" stroke-width="' + (g * 0.13) + '"/>';
       if (n.d <= 0.5) out += '<path d="M' + sx + ' ' + sy2 + 'q' + (g * 0.9) + ' ' + (up ? g * 1.1 : -g * 1.1) + ' ' + (g * 0.7) + ' ' + (up ? g * 2.4 : -g * 2.4) + '" fill="none" stroke="' + col + '" stroke-width="' + (g * 0.18) + '"/>';
     }
     if (n.d === 1.5 || n.d === 3 || n.d === 0.75) out += '<circle cx="' + (x + g * 1.2) + '" cy="' + (y - (d % 2 === 0 ? g / 2 : 0)) + '" r="' + (g * 0.18) + '" fill="' + col + '"/>';
-    if (SHARP[n.m % 12]) {
+    if (n.fl) {
+      const ax = x - g * 1.8;
+      out += '<path d="M' + (ax - g * 0.3) + ' ' + (y - g * 2) + 'V' + (y + g * 0.55) + 'c' + (g * 0.9) + ' -' + (g * 0.35) + ' ' + (g * 1.05) + ' -' + (g * 1.25) + ' ' + (g * 0.1) + ' -' + (g * 1.05) + 'c-' + (g * 0.35) + ' ' + (g * 0.05) + ' -' + (g * 0.7) + ' ' + (g * 0.3) + ' -' + (g * 0.9) + ' ' + (g * 0.55) + '" fill="none" stroke="' + col + '" stroke-width="' + (g * 0.16) + '" stroke-linecap="round"/>';
+    } else if (SHARP[n.m % 12]) {
       const ax = x - g * 1.9;
       out += '<g stroke="' + col + '" stroke-width="' + (g * 0.12) + '"><line x1="' + (ax - g * 0.25) + '" x2="' + (ax - g * 0.25) + '" y1="' + (y - g * 1.1) + '" y2="' + (y + g * 1.2) + '"/><line x1="' + (ax + g * 0.25) + '" x2="' + (ax + g * 0.25) + '" y1="' + (y - g * 1.2) + '" y2="' + (y + g * 1.1) + '"/></g>' +
         '<g stroke="' + col + '" stroke-width="' + (g * 0.28) + '"><line x1="' + (ax - g * 0.6) + '" x2="' + (ax + g * 0.6) + '" y1="' + (y - g * 0.25) + '" y2="' + (y - g * 0.5) + '"/><line x1="' + (ax - g * 0.6) + '" x2="' + (ax + g * 0.6) + '" y1="' + (y + g * 0.5) + '" y2="' + (y + g * 0.25) + '"/></g>';
@@ -175,6 +179,8 @@ window.Music = (function () {
         if (g.length > 1) { g.sort((a, b) => a.m - b.m); if (h === 'd') { g[0].f = Math.min(g[0].f, 1 + 0); } }
       });
     });
+    /* doigtés écrits à la main (gammes avec passage du pouce) : ils remplacent le calcul pour la main droite */
+    if (song.fing) { const fs = String(song.fing).trim().split(/\s+/).map(Number), rh = song.notes.filter((n) => n.h === 'd').sort((a, b) => a.t - b.t || a.m - b.m); rh.forEach((n, i) => { if (fs[i]) n.f = fs[i]; }); }
     song._fing = true;
     return song;
   }

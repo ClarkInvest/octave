@@ -131,7 +131,7 @@
     }
     /* entrée clavier pour « Rejoue » */
     const lit = new Set();
-    function hint(m) { if (keys && keys[m]) keys[m].classList.add('target'); if (DB.input.lights) { E.midi.light(m, true); lit.add(m); } }
+    function hint(m) { if (keys && keys[m]) keys[m].classList.add('target'); if (DB.input.lights) { E.midi.light(m, true, m < 60 ? 'g' : 'd'); lit.add(m); } }
     function clearHints() { if (keys) Object.values(keys).forEach((k) => k.classList.remove('target')); lit.forEach((m) => E.midi.light(m, false)); lit.clear(); }
     A.onLeave(clearHints);
     if (mode === 'repete') {

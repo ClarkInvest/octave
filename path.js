@@ -17,7 +17,10 @@
     lock: sv('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>')
   };
   const TLABEL = { lire: 'Lire', quiz: 'Quiz', clavier: 'Au clavier', morceau: 'Morceau', concert: 'Concert', oreille: 'Oreille', rythme: 'Rythme' };
-  const CHORDS = { do: { name: 'Do', notes: [48, 52, 55] }, fa: { name: 'Fa', notes: [41, 45, 48] }, sol: { name: 'Sol', notes: [43, 47, 50] } };
+  const CHORDS = { do: { name: 'Do', notes: [48, 52, 55] }, fa: { name: 'Fa', notes: [41, 45, 48] }, sol: { name: 'Sol', notes: [43, 47, 50] },
+    /* Monde 4 : une note dans chaque main */
+    'p-do-do': { name: 'Do + Do', notes: [48, 60], pair: true }, 'p-do-mi': { name: 'Do + Mi', notes: [48, 64], pair: true },
+    'p-sol-re': { name: 'Sol + Ré', notes: [55, 62], pair: true }, 'p-mi-sol': { name: 'Mi + Sol', notes: [52, 67], pair: true }, 'p-re-fa': { name: 'Ré + Fa', notes: [50, 65], pair: true } };
 
   /* ---------- Les Mondes ---------- */
   const WORLDS = [
@@ -79,8 +82,40 @@
       { type: 'oreille', ref: 'repete', title: 'Rejoue ce que tu entends' },
       { type: 'concert', ref: 'blues' }
     ] },
-    { id: 'm4', title: 'Les deux mains', kid: 'La grande salle', sum: 'Mélodie et basse ensemble, la coordination, le tempo qui monte.', soon: true },
-    { id: 'm5', title: 'Plus loin', kid: 'Le stade', sum: 'Dièses et bémols, croches, gammes, et le début de la Lettre à Élise.', soon: true }
+    { id: 'm4', title: 'Les deux mains', kid: 'La grande salle', sum: 'Les deux mains ensemble, la partition à deux portées, les croches.', steps: [
+      { type: 'lire', ref: 'deux-mains' },
+      { type: 'morceau', ref: 'alterne' },
+      { type: 'quiz', ref: 'deux-mains' },
+      { type: 'clavier', ex: { kind: 'accord', chords: ['p-do-do', 'p-do-mi', 'p-sol-re', 'p-mi-sol'] }, title: 'Une note dans chaque main', key: 'deux-notes' },
+      { type: 'morceau', ref: 'miroir' },
+      { type: 'morceau', ref: 'ensemble' },
+      { type: 'morceau', ref: 'lune2' },
+      { type: 'lire', ref: 'croches' },
+      { type: 'quiz', ref: 'croches' },
+      { type: 'rythme', ref: 'tape', title: 'Tape le rythme avec des croches', key: 'tape-croches' },
+      { type: 'morceau', ref: 'wish' },
+      { type: 'morceau', ref: 'joie2' },
+      { type: 'clavier', ex: { kind: 'accord', chords: ['p-do-mi', 'p-re-fa', 'p-mi-sol', 'p-sol-re', 'p-do-do'] }, title: 'Les deux mains, plus vite', key: 'deux-notes-vite' },
+      { type: 'morceau', ref: 'canon' },
+      { type: 'oreille', ref: 'repete', title: 'Rejoue ce que tu entends', key: 'oreille-repete-m4' },
+      { type: 'concert', ref: 'vent2' }
+    ] },
+    { id: 'm5', title: 'Plus loin', kid: 'Le stade', sum: 'Dièses et bémols, notes pointées, la gamme de Sol, et la Lettre à Élise.', steps: [
+      { type: 'lire', ref: 'dieses', teach: [66, 70] },
+      { type: 'clavier', ex: { kind: 'trouve', pcs: [6] }, title: 'Trouve tous les Fa♯', key: 'trouve-fa-diese' },
+      { type: 'quiz', ref: 'dieses' },
+      { type: 'lire', ref: 'pointee' },
+      { type: 'quiz', ref: 'pointee' },
+      { type: 'morceau', ref: 'sapin' },
+      { type: 'lire', ref: 'gamme-sol', teach: [57, 59, 69, 71] },
+      { type: 'morceau', ref: 'gammesol' },
+      { type: 'quiz', ref: 'gamme-sol' },
+      { type: 'clavier', ex: { kind: 'lis' }, title: 'Lis les notes, dièses compris', key: 'lis-dieses' },
+      { type: 'morceau', ref: 'doucenuit' },
+      { type: 'morceau', ref: 'green' },
+      { type: 'oreille', ref: 'aigu', title: 'Aigu ou grave ?', key: 'oreille-aigu-m5' },
+      { type: 'concert', ref: 'elise' }
+    ] }
   ];
   /* Chaque étape a un nom fixe (« m1-lire-clavier », « m1-trouve-do »…) : on peut ajouter ou déplacer
      des étapes plus tard sans décaler la progression déjà enregistrée. */
@@ -151,7 +186,7 @@
     quiz: (r) => r.score >= r.total * 0.75,
     clavier: (r) => r.acc >= 0.7,
     morceau: (r) => r.stars >= 1,
-    concert: (r) => r.mode === 'defi' && r.stars >= 1,
+    concert: (r) => r.mode === 'defi' && r.stars >= 1 && !!r.concert,
     oreille: (r) => r.acc >= 0.7,
     rythme: (r) => r.acc >= 0.7
   };
@@ -170,6 +205,7 @@
     const cur = current(p);
     let s = cur && types.includes(cur.type) && cur.ref === ref ? cur : null;
     if (s) {
+      if (s.type === 'concert' && !r.concert) return { step: s, passed: false, hint: true };
       if (!PASS[s.type](r)) return { step: s, passed: false };
       p.path = p.path || {}; p.pathV = 2; p.path[s.id] = { at: Date.now() };
       A.addCoins(p, 10);
@@ -178,11 +214,15 @@
       A.toast(A.isKid() ? 'Étape validée ! +10 pièces' : 'Étape validée');
       return { step: s, passed: true, first: true, next, worldDone: !next || next.world !== s.world };
     }
+    /* si le morceau est celui d'un concert à venir, joué hors concert : on rappelle comment le valider */
+    if (cur && cur.type === 'concert' && cur.ref === ref && !r.concert) return { step: cur, passed: false, hint: true };
     s = STEPS.find((x) => types.includes(x.type) && x.ref === ref && isDone(p, x));
-    return s ? { step: s, passed: PASS[s.type](r), first: false, next: current(p) } : null;
+    if (!s || !PASS[s.type](r)) return null;
+    return { step: s, passed: true, first: false, next: current(p) };
   }
   function resultHtml(res) {
     if (!res) return '';
+    if (res.hint) return '<div class="help step-rule">' + (A.isKid() ? 'Ce morceau est ton concert : lance-le depuis ta tournée pour monter sur scène !' : 'Ce morceau est le concert du monde : lancez-le depuis le parcours pour le valider.') + '</div><a class="btn" href="' + href(res.step) + '">' + (A.isKid() ? 'Aller au concert' : 'Lancer le concert') + '</a>';
     if (!res.passed) return '<div class="help step-rule">' + RULE[res.step.type] + '</div>';
     if (!res.next) return '<a class="btn" href="#parcours">' + (A.isKid() ? 'Tournée terminée !' : 'Parcours terminé') + '</a>';
     const label = res.worldDone ? (A.isKid() ? 'Nouveau monde débloqué !' : 'Monde suivant') : 'Étape suivante';
@@ -313,7 +353,7 @@
     /* plaquer trois notes ensemble n'a de sens qu'avec un vrai clavier : ni au micro (une note à la fois) ni avec les doigts sur l'écran */
     const together = kind === 'accord' && lvl >= 3 && DB.input.source === 'midi';
     const lit = new Set();
-    function hint(m) { const k = keys[m]; if (k) k.classList.add('target'); if (DB.input.lights) { E.midi.light(m, true); lit.add(m); } }
+    function hint(m) { const k = keys[m]; if (k) k.classList.add('target'); if (DB.input.lights) { E.midi.light(m, true, m < 60 ? 'g' : 'd'); lit.add(m); } }
     function clearHints() { clearTimeout(S.hintT); Object.values(keys).forEach((k) => k.classList.remove('target')); lit.forEach((m) => E.midi.light(m, false)); lit.clear(); }
     const match = (m, t) => (exact ? m === t : m % 12 === t % 12);
     function makeSeq() {
@@ -374,9 +414,9 @@
           : (hand === 'g' ? '<div class="help">Main gauche</div>' : '') + '<div class="seq">' + S.seq.map((n, i) => '<span class="seq-n' + (i < S.si ? ' done' : i === S.si ? ' cur' : '') + '">' + (lvl <= 3 ? '<b>' + MU.natName(n.m) + '</b>' : '') + (lvl <= 2 ? '<i>doigt ' + n.f + '</i>' : '') + '</span>').join('') + '</div>';
       }
       if (kind === 'accord') {
-        ask = '<div><div class="help">Joue l\'accord de</div><div class="ask">' + S.chord.name + '</div>' +
-          (lvl <= 3 ? '<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">' + S.chord.notes.map((m) => '<span class="chip small' + (S.got.has(m % 12) ? ' got' : '') + '">' + MU.natName(m) + '</span>').join('') + '</div>' : '<div class="help">' + S.got.size + ' note' + (S.got.size > 1 ? 's' : '') + ' sur 3</div>') +
-          '<div class="help" style="margin-top:6px">' + (together ? 'Les trois en même temps' : 'Ensemble ou l\'une après l\'autre') + '</div></div>';
+        ask = '<div><div class="help">' + (S.chord.pair ? 'Main gauche + main droite' : 'Joue l\'accord de') + '</div><div class="ask">' + S.chord.name + '</div>' +
+          (lvl <= 3 ? '<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">' + S.chord.notes.map((m) => '<span class="chip small' + (S.got.has(S.chord.pair || lvl >= 5 ? m : m % 12) ? ' got' : '') + '">' + (S.chord.pair ? (m < 60 ? 'gauche : ' : 'droite : ') + E.name(m) : MU.natName(m)) + '</span>').join('') + '</div>' : '<div class="help">' + S.got.size + ' note' + (S.got.size > 1 ? 's' : '') + ' sur ' + S.chord.notes.length + '</div>') +
+          '<div class="help" style="margin-top:6px">' + (S.chord.pair ? (together ? 'Les deux en même temps' : 'Ensemble, ou l\'une après l\'autre') : together ? 'Les trois en même temps' : 'Ensemble ou l\'une après l\'autre') + '</div></div>';
       }
       card.innerHTML = '<div class="between"><span class="eyebrow">' + (kind === 'suite' ? 'Suite ' : 'Tour ') + S.round + ' sur ' + ROUNDS + '</span>' + pips() + '</div>' +
         '<div class="challenge">' + mascot() + ask + '</div>';
@@ -395,7 +435,7 @@
     E.expect = (m) => {
       if (S.phase !== 'play') return false;
       if (kind === 'trouve') return m % 12 === S.target;
-      if (kind === 'accord') return S.chord.notes.some((c) => c % 12 === m % 12);
+      if (kind === 'accord') return S.chord.notes.some((c) => (S.chord.pair ? c === m : c % 12 === m % 12));
       return match(m, S.target);
     };
     A.onLeave(() => { E.expect = null; });
@@ -413,12 +453,15 @@
         return;
       }
       if (kind === 'accord') {
-        const inChord = S.chord.notes.some((c) => (lvl >= 5 ? c === m : c % 12 === m % 12));
+        /* une note dans chaque main : l'octave compte (Do grave et Do aigu sont deux notes différentes) */
+        const ex5 = lvl >= 5 || S.chord.pair, ck = (x) => (ex5 ? x : x % 12);
+        const inChord = S.chord.notes.some((c) => ck(c) === ck(m));
         if (!inChord) { wrong(); return; }
-        if (!S.got.has(m % 12)) { S.got.add(m % 12); S.ok++; }
+        if (!S.got.has(ck(m))) { S.got.add(ck(m)); S.ok++; }
+        const need = new Set(S.chord.notes.map(ck)).size;
         const done = together
-          ? S.chord.notes.every((c) => Array.from(E.held).some((h) => (lvl >= 5 ? h === c : h % 12 === c % 12)))
-          : S.got.size === 3;
+          ? S.chord.notes.every((c) => Array.from(E.held).some((h) => ck(h) === ck(c)))
+          : S.got.size >= need;
         if (done) { if (!S.curMiss) mastery(p, S.target, true); blip(); react('happy'); S.phase = 'wait'; draw(); setTimeout(() => { if (S.phase !== 'wait') return; S.phase = 'play'; next(); }, 700); }
         else draw();
         return;
@@ -471,7 +514,9 @@
       if (w.soon) return '<div class="world soon-w"><div class="world-head"><span class="world-n">' + w.n + '</span><span class="path-txt"><span class="eyebrow">Monde ' + w.n + ' · bientôt</span><span class="label">' + A.esc(worldName(w)) + '</span><span class="help">' + w.sum + '</span></span>' + TICON.lock + '</div></div>';
       const n = w.steps.filter((s) => isDone(p, s)).length, all = n === w.steps.length, isCur = cur && cur.world === w;
       return '<details class="world"' + (isCur ? ' open' : '') + '><summary class="world-head"><span class="world-n' + (all ? ' ok' : '') + '">' + (all ? '✓' : w.n) + '</span><span class="path-txt"><span class="eyebrow">Monde ' + w.n + ' · ' + n + ' / ' + w.steps.length + '</span><span class="label">' + A.esc(worldName(w)) + '</span><span class="help">' + w.sum + '</span></span></summary>' +
-        '<div class="progress" style="margin:0 16px 10px"><i style="width:' + Math.round(n / w.steps.length * 100) + '%"></i></div><div class="path">' + w.steps.map(stepRow).join('') + '</div></details>';
+        '<div class="progress" style="margin:0 16px 10px"><i style="width:' + Math.round(n / w.steps.length * 100) + '%"></i></div>' +
+        (all ? '<a class="btn small replay-concert" href="' + href(w.steps[w.steps.length - 1]) + '">' + TICON.concert + (kid ? ' Rejouer le concert' : ' Rejouer le concert') + '</a>' : '') +
+        '<div class="path">' + w.steps.map(stepRow).join('') + '</div></details>';
     }).join('');
     const drill = (h, t, d) => '<a class="drill" href="' + h + '"><span class="label">' + t + '</span><span class="help">' + d + '</span></a>';
     const lessons = window.Learn.LESSONS;

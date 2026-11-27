@@ -51,6 +51,11 @@
     { id: 'm1', name: 'Premiers pas', kid: 'Monde 1 : Le garage', desc: 'Terminer le Monde 1', shape: 'medal', tier: 'or', glyph: '1', ribbon: '#3D6BFF', shiny: true, coins: 50, test: (p) => worldDone(p, 'm1') },
     { id: 'm2', name: 'Lire et compter', kid: 'Monde 2 : La salle des fêtes', desc: 'Terminer le Monde 2', shape: 'medal', tier: 'or', glyph: '2', ribbon: '#1FA67A', shiny: true, coins: 50, test: (p) => worldDone(p, 'm2') },
     { id: 'm3', name: 'La main gauche', kid: 'Monde 3 : Le club', desc: 'Terminer le Monde 3', shape: 'medal', tier: 'or', glyph: '3', ribbon: '#B04DFF', shiny: true, coins: 50, test: (p) => worldDone(p, 'm3') },
+    { id: 'm4', name: 'Les deux mains', kid: 'Monde 4 : La grande salle', desc: 'Terminer le Monde 4', shape: 'medal', tier: 'or', glyph: '4', ribbon: '#FF7A3D', shiny: true, coins: 60, test: (p) => worldDone(p, 'm4') },
+    { id: 'm5', name: 'Plus loin', kid: 'Monde 5 : Le stade', desc: 'Terminer le Monde 5', shape: 'medal', tier: 'diamant', glyph: '5', ribbon: '#E2483D', shiny: true, coins: 80, test: (p) => worldDone(p, 'm5') },
+    { id: 'noel', name: 'Concert de Noël', desc: 'Réussir 3 chants de Noël', shape: 'star', tier: 'or', glyph: '✶', shiny: true, coins: 30, test: (p) => window.Music.SONGS.filter((s) => s.pack === 'noel' && ((p.songs || {})[s.id] || {}).stars >= 1).length >= 3 },
+    { id: 'cours', name: 'Bon élève', desc: 'Terminer un cours « Apprendre ce morceau »', shape: 'cup', tier: 'argent', glyph: '✓', coins: 30, test: (p) => Object.values(p.courses || {}).some((c) => c.done) },
+    { id: 'oreille', name: 'Oreille d\'or', desc: 'Retrouver un air entier à l\'oreille', shape: 'medal', tier: 'or', glyph: '♪', ribbon: '#3DB4FF', coins: 30, test: (p) => !!st(p).byEar },
     { id: 'song1', name: 'Premier morceau', desc: 'Jouer un morceau jusqu\'au bout', shape: 'star', tier: 'bronze', glyph: '♪', coins: 10, test: (p) => songsWith(p, 0) >= 1 },
     { id: 'star3', name: 'Trois étoiles', desc: 'Obtenir 3 étoiles sur un morceau', shape: 'star', tier: 'argent', glyph: '★', coins: 15, test: (p) => songsWith(p, 3) >= 1 },
     { id: 'star3x5', name: 'Collection d\'étoiles', desc: '3 étoiles sur 5 morceaux', shape: 'cup', tier: 'argent', glyph: '5', coins: 30, test: (p) => songsWith(p, 3) >= 5 },
@@ -249,7 +254,7 @@
   /* les trophées se vérifient après chaque étape du parcours */
   if (window.Path && window.Path.report) {
     const orig = window.Path.report;
-    window.Path.report = function () { const r = orig.apply(this, arguments); markDay(); A.save(); setTimeout(() => check(), 900); return r; };
+    window.Path.report = function (type, ref, res) { const r = orig.apply(this, arguments); markDay(); A.save(); if (!(res && res.concert)) setTimeout(() => check(), 900); return r; };
   }
   /* et à chaque retour à l'accueil ou au parcours */
   window.addEventListener('hashchange', () => { const h = location.hash; if (/^#(accueil|parcours)?$/.test(h)) setTimeout(() => check(), 700); });

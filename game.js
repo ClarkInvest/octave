@@ -6,9 +6,11 @@
   function Game(param) {
     const parts = String(param || '').split('-'), concert = parts[1] === 'concert';
     const song = MU.fingers(MU.hands(MU.song(parts[0]) || MU.SONGS[0]));
+    /* étape d'un cours « Apprendre ce morceau » : réglages imposés par le cours */
+    const course = parts[1] === 'cours' && window.Course ? window.Course.stepOf(song, +parts[2]) : null;
     const p = A.prof(), kid = A.isKid(), DB = A.DB;
-    const st = { mode: concert ? 'defi' : (DB.input.gameMode || 'tranquille'), speed: DB.input.gameSpeed || 1, metro: DB.input.metro !== false, fingers: DB.input.fingers !== false, accomp: !!DB.input.accomp };
-    const back = A.prevHash && A.prevHash.indexOf('jeu') !== 0 ? '#' + A.prevHash : '#morceaux';
+    const st = { mode: concert ? 'defi' : course ? course.mode : (DB.input.gameMode || 'tranquille'), speed: course ? course.speed : DB.input.gameSpeed || 1, metro: DB.input.metro !== false, fingers: DB.input.fingers !== false, accomp: !!DB.input.accomp };
+    const back = course ? '#apprendre-' + song.id : A.prevHash && A.prevHash.indexOf('jeu') !== 0 ? '#' + A.prevHash : '#morceaux';
     const micro = () => DB.input.source === 'micro';
 
     /* mesures */
@@ -19,7 +21,7 @@
 
     /* réglages de travail, gardés par joueur et par morceau */
     p.practice = p.practice || {};
-    const pr = Object.assign({ hand: 'tout', from: 1, to: totalBars, loop: false, ramp: false }, concert ? {} : p.practice[song.id] || {});
+    const pr = Object.assign({ hand: 'tout', from: 1, to: totalBars, loop: false, ramp: false }, concert ? {} : course ? course.pr : p.practice[song.id] || {});
     const others = DB.profiles.filter((x) => x.id !== p.id);
     if (!both || (pr.hand === 'duo' && !others.length)) pr.hand = 'tout';
     if (!pr.duo || !DB.profiles.find((x) => x.id === pr.duo.d) || !DB.profiles.find((x) => x.id === pr.duo.g)) {
@@ -30,7 +32,7 @@
     const prof = (id) => DB.profiles.find((x) => x.id === id) || p;
     pr.from = Math.max(1, Math.min(totalBars, pr.from)); pr.to = Math.max(pr.from, Math.min(totalBars, pr.to || totalBars));
     const practicing = () => pr.from > 1 || pr.to < totalBars || pr.hand !== 'tout';
-    const savePr = () => { p.practice[song.id] = { hand: pr.hand, from: pr.from, to: pr.to, loop: pr.loop, ramp: pr.ramp, duo: pr.duo }; A.save(); };
+    const savePr = () => { if (course) return; p.practice[song.id] = { hand: pr.hand, from: pr.from, to: pr.to, loop: pr.loop, ramp: pr.ramp, duo: pr.duo }; A.save(); };
 
     /* tessiture du clavier : octaves entières autour du morceau */
     const ms = song.notes.map((n) => n.m);
@@ -61,7 +63,7 @@
     A.shell('morceaux',
       '<div class="game">' +
       '<div class="g-top"><a href="' + back + '" class="icon-btn" aria-label="Retour">' + A.ICON.back + '</a>' +
-        '<div class="g-title"><div class="eyebrow">' + (concert ? (kid ? 'Concert de fin de monde' : 'Concert · fin du monde') : A.esc(song.by) + ' · Niveau ' + song.level) + '</div><div class="h2">' + A.esc(song.title) + '</div><div class="g-work" id="gwork" hidden></div></div>' +
+        '<div class="g-title"><div class="eyebrow">' + (concert ? (kid ? 'Concert de fin de monde' : 'Concert · fin du monde') : course ? 'Cours · étape ' + (course.n + 1) + ' : ' + A.esc(course.title) : A.esc(song.by) + ' · Niveau ' + song.level) + '</div><div class="h2">' + A.esc(song.title) + '</div><div class="g-work" id="gwork" hidden></div></div>' +
         '<div class="g-ctrl"><div class="seg" role="group" aria-label="Mode de jeu"><button data-gm="tranquille">Tranquille</button><button data-gm="defi">Défi</button></div>' +
         '<div class="chip g-speed"><button class="icon-btn" id="slower" aria-label="Ralentir">−</button><span id="speed"></span><button class="icon-btn" id="faster" aria-label="Accélérer">+</button></div>' +
         '<button class="btn small ghost" id="listen">Écouter</button><button class="icon-btn" id="grot" aria-label="Tourner l\'écran (portrait ou paysage)">' + A.ICON.rotate + '</button></div></div>' +
@@ -135,8 +137,8 @@
       if (pr.loop) bits.push(pr.ramp ? 'en boucle, vitesse qui monte' : 'en boucle');
       w.hidden = !bits.length; w.textContent = bits.join(' · ');
     }
-    const setSpeed = (v) => { st.speed = Math.max(0.4, Math.min(1.5, Math.round(v * 100) / 100)); DB.input.gameSpeed = st.speed; A.save(); setControls(); };
-    document.querySelectorAll('[data-gm]').forEach((b) => b.onclick = () => { if (run && run.kind === 'play') return; st.mode = b.dataset.gm; DB.input.gameMode = st.mode; A.save(); setControls(); ready(); });
+    const setSpeed = (v) => { st.speed = Math.max(0.4, Math.min(1.5, Math.round(v * 100) / 100)); if (!course) { DB.input.gameSpeed = st.speed; A.save(); } setControls(); };
+    document.querySelectorAll('[data-gm]').forEach((b) => b.onclick = () => { if (run && run.kind === 'play') return; st.mode = b.dataset.gm; if (!course) { DB.input.gameMode = st.mode; A.save(); } setControls(); ready(); });
     document.getElementById('slower').onclick = () => setSpeed(st.speed - 0.1);
     document.getElementById('faster').onclick = () => setSpeed(st.speed + 0.1);
     document.getElementById('grot').onclick = () => A.toggleOrient();
@@ -149,7 +151,7 @@
     function lights(set) {
       if (!DB.input.lights) return;
       lit.forEach((m) => { if (!set.has(m)) { E.midi.light(m, false); lit.delete(m); } });
-      set.forEach((m) => { if (!lit.has(m)) { E.midi.light(m, true); lit.add(m); } });
+      set.forEach((m) => { if (!lit.has(m)) { const n = view.find((x) => x.m === m && !x.auto && !x.hit); E.midi.light(m, true, n ? n.h : (m < 60 ? 'g' : 'd')); lit.add(m); } });
     }
     function lightsOff() { lit.forEach((m) => E.midi.light(m, false)); lit.clear(); }
 
@@ -334,6 +336,7 @@
         '<div class="say-row" style="justify-content:center;margin:4px 0 8px"><div class="h2">' + (st.mode === 'tranquille' ? 'La musique attend la bonne note' : 'Joue en rythme, avec le métronome') + '</div>' + A.sayBtn((st.mode === 'tranquille' ? 'Mode tranquille : la musique attend la bonne note. ' : 'Mode défi : joue en rythme, avec le métronome. ') + song.title + '. ' + song.desc) + '</div>' +
         '<div class="help">' + A.esc(song.desc) + (best ? ' Record : ' + stars(best.stars) + ' ' + best.acc + ' %.' : '') + '</div>' +
         (concert ? '<div class="help step-rule">Pour valider le concert : au moins 1 étoile en mode Défi. Tu peux ralentir le tempo avec − .</div>' : '') +
+        (course ? '<div class="course-tip"><div class="label">' + A.esc(course.title) + '</div><div class="help">' + (kid ? course.tip[0] : course.tip[1]) + '</div><div class="help step-rule">' + (course.untilFull ? (kid ? 'L\'étape est gagnée quand tu arrives à 100 % de la vitesse.' : 'Validée à 100 % de la vitesse, avec au moins ' + course.pass + ' %.') : (kid ? 'Pour réussir : ' : 'Pour valider : ') + course.pass + ' %' + (course.mode === 'defi' ? ', en mode Défi' : '')) + '</div></div>' : '') +
         '<div class="g-opts">' +
           (st.mode === 'defi' ? '<label class="row"><input type="checkbox" id="gmetro"' + (st.metro ? ' checked' : '') + '> Métronome</label>' : '') +
           '<label class="row"><input type="checkbox" id="gfing"' + (st.fingers ? ' checked' : '') + '> Doigtés</label>' +
@@ -342,7 +345,7 @@
         (empty ? '<div class="help step-rule">Rien à jouer pour cette main dans ce passage : choisissez l\'autre main ou d\'autres mesures.</div>' : '') +
         '<button class="btn" id="ggo" style="margin-top:14px"' + (empty ? ' disabled' : '') + '>' + A.ICON.play + (kid ? ' C\'est parti' : ' Jouer') + '</button>' +
         (DB.input.source !== 'ecran' && !A.inputOn() ? '<div class="help" style="margin-top:10px">Votre clavier n\'est pas connecté : <a href="#clavier">le connecter</a>, ou touchez le clavier à l\'écran.</div>' : '') +
-        (concert ? '' : workPanel()) + '</div>';
+        (concert || course ? '' : workPanel()) + '</div>';
       const mt = document.getElementById('gmetro'); if (mt) mt.onchange = () => { st.metro = mt.checked; DB.input.metro = st.metro; A.save(); };
       const gf = document.getElementById('gfing'); gf.onchange = () => { st.fingers = gf.checked; DB.input.fingers = st.fingers; A.save(); staffKey = ''; drawStaff(0); draw(); };
       const ga = document.getElementById('gaccomp'); if (ga) ga.onchange = () => { st.accomp = ga.checked; DB.input.accomp = st.accomp; A.save(); build(); staffKey = ''; drawStaff(0); draw(); };
@@ -463,8 +466,10 @@
       if (!pr.loop) { finish(); return; }
       const acc = passAcc(run), pct = Math.round(acc * 100);
       run.passes.push(pct);
+      /* cours : le tempo qui monte est gagné à la vraie vitesse */
+      if (course && course.untilFull && st.speed >= 0.999 && pct >= course.pass) { finish(true); return; }
       let msg = (kid ? 'Tour ' : 'Tour ') + run.pass + ' : ' + pct + ' %';
-      if (pr.ramp && acc >= 0.9 && st.speed < 1) { setSpeed(Math.min(1, st.speed + 0.05)); msg += ' · vitesse ' + Math.round(st.speed * 100) + ' %'; }
+      if (pr.ramp && acc >= 0.9 && st.speed < 1) { setSpeed(Math.min(1, st.speed + (course ? 0.1 : 0.05))); msg += ' · vitesse ' + Math.round(st.speed * 100) + ' %'; }
       else if (pr.ramp && acc >= 0.9 && st.speed >= 1) msg += kid ? ' · à fond !' : ' · vitesse normale atteinte';
       react(acc >= 0.9 ? 'happy' : 'idle', msg);
       autoOff(); reset();
@@ -564,7 +569,7 @@
       if (record) p.songs[song.id] = { stars: nStars, acc, mode: st.mode };
       let coins = 0; if (!work) { coins = nStars * 10 + (st.mode === 'defi' ? 5 : 0); A.addCoins(p, coins); }
       A.save();
-      const res = !work && window.Path ? window.Path.report('morceau', song.id, { stars: nStars, mode: st.mode }) : null;
+      const res = !work && window.Path ? window.Path.report('morceau', song.id, { stars: nStars, mode: st.mode, concert, acc }) : null;
       const detail = fromLoop && r.passes.length ? r.passes.length + ' tour' + (r.passes.length > 1 ? 's' : '') + ' : ' + r.passes.map((x) => x + ' %').join(' · ') + ' · vitesse ' + Math.round(st.speed * 100) + ' %'
         : st.mode === 'tranquille' ? r.good + ' notes justes · ' + r.wrong + ' fausses · meilleure série ' + r.best
         : r.perfect + ' parfaites · ' + r.okay + ' bien' + (r.close ? ' · ' + r.close + ' un peu tôt ou tard' : '') + (r.lateN ? ' · ' + r.lateN + ' en retard' : '') + ' · ' + r.missN + ' ratées · meilleure série ' + r.best;
@@ -582,7 +587,9 @@
       if (gs) gs.onclick = () => { Object.assign(pr, { from: spot.from, to: spot.to, loop: true, ramp: true }); savePr(); setSpeed(Math.max(0.4, Math.min(0.8, st.speed * 0.8))); build(); setControls(); ready(); };
       if (nStars >= 2) react('happy', kid ? 'Quelle star !' : 'Belle interprétation');
       const fxw = (p.wear || {}).fx; if (T && fxw && nStars >= 2) T.celebrate({ 'fx-confetti': 'confetti', 'fx-stars': 'stars', 'fx-fireworks': 'fireworks' }[fxw]);
-      if (T) setTimeout(() => T.check(), 1300);
+      if (concert && window.Concert) window.Concert.finale({ song, stars: nStars, acc, mode: st.mode, res }, (ok) => { if (T) T.check(); if (!ok) ready(); });
+      else if (T) setTimeout(() => T.check(), 1300);
+      if (course && window.Course) window.Course.after(song, course, { acc, stars: nStars, mode: st.mode, speed: st.speed, passes: r.passes || [], fromLoop: !!fromLoop }, over);
     }
 
     /* résultat d'un duo : un score par joueur, des pièces pour chacun */
@@ -614,26 +621,55 @@
     }
 
     ready();
+    if (concert && window.Concert) window.Concert.intro(song);
   }
 
   /* ---------- Écran : morceaux ---------- */
+  const LEVELS = {
+    1: ['Premiers morceaux', 'Une main, peu de notes, des rythmes simples'],
+    2: ['Un pas de plus', 'Plus de notes, des croches, les premières basses'],
+    3: ['Les deux mains', 'Mélodie et basse ensemble, rythmes variés'],
+    4: ['Plus loin', 'Dièses, rythmes pointés, morceaux plus longs']
+  };
   function Songs() {
-    const p = A.prof(), kid = A.isKid(), mine = p.songs || {};
+    const p = A.prof(), kid = A.isKid(), mine = p.songs || {}, C = window.Course;
     const perso = MU.SONGS.filter((s) => s.perso).reverse();
-    const kinds = { exercice: 'Exercice', chanson: 'Chanson', classique: 'Classique', groove: 'Groove', perso: 'Perso' };
-    const card = (s) => {
-      const b = mine[s.id];
-      return '<a class="song' + (s.perso ? ' perso' : '') + '" href="#jeu-' + s.id + '"><div class="song-art" data-kind="' + s.kind + '">' + MU.preview(s, { x0: 50, dx: 28, width: 220, height: 92, gap: 7, top: 30, gapG: 5.4, topG: 14, label: 'Début de ' + s.title }) + '</div>' +
-        '<div class="song-body"><div class="between"><span class="eyebrow">' + kinds[s.kind] + ' · Niv. ' + s.level + '</span><span class="song-stars" aria-label="' + (b ? b.stars : 0) + ' étoiles">' + (b ? '★★★'.slice(0, b.stars) + '☆☆☆'.slice(0, 3 - b.stars) : '☆☆☆') + '</span></div>' +
-        '<div class="label" style="font-size:16px">' + A.esc(s.title) + '</div><div class="help">' + A.esc(s.by) + '</div></div></a>';
+    const kinds = { exercice: 'Exercice', chanson: 'Chanson', classique: 'Classique', groove: 'Groove', perso: 'Perso', noel: 'Noël' };
+    const stars = (b) => (b ? '★★★'.slice(0, b.stars) + '☆☆☆'.slice(0, 3 - b.stars) : '☆☆☆');
+    const card = (s, extra) => {
+      const b = mine[s.id], pg = C && !s.perso ? C.progress(p, s) : null;
+      return '<div class="song-wrap"><a class="song' + (s.perso ? ' perso' : '') + '" href="#jeu-' + s.id + '"><div class="song-art" data-kind="' + s.kind + '">' + MU.preview(s, { x0: 50, dx: 28, width: 220, height: 92, gap: 7, top: 30, gapG: 5.4, topG: 14, label: 'Début de ' + s.title }) + '</div>' +
+        '<div class="song-body"><div class="between"><span class="eyebrow">' + kinds[s.kind] + ' · Niv. ' + s.level + '</span><span class="song-stars" aria-label="' + (b ? b.stars : 0) + ' étoiles">' + stars(b) + '</span></div>' +
+        '<div class="label" style="font-size:16px">' + A.esc(s.title) + '</div><div class="help">' + A.esc(s.by) + '</div></div></a>' +
+        (s.perso ? '<a class="song-edit" href="#importer-' + s.id + '" aria-label="Modifier ' + A.esc(s.title) + '">Modifier</a>'
+          : '<a class="song-learn' + (pg && pg.done ? ' done' : '') + '" href="#apprendre-' + s.id + '">' + (pg && pg.done ? '✓ Appris' : pg && pg.n ? 'Cours ' + pg.n + '/' + pg.total : (kid ? 'Apprendre' : 'Apprendre')) + '</a>') +
+        (extra || '') + '</div>';
     };
+    const base = MU.SONGS.filter((s) => !s.perso);
+    /* morceau conseillé : le plus facile qui n'est pas encore bien joué (2 étoiles), en commençant par un cours entamé */
+    const started = C ? base.filter((s) => { const g = C.progress(p, s); return g.n > 0 && !g.done; }) : [];
+    const todo = base.filter((s) => !mine[s.id] || mine[s.id].stars < 2).sort((a, b) => a.level - b.level);
+    const pick = started[0] || todo[0] || null;
+    const xmas = new Date().getMonth() === 11 || new Date().getMonth() === 0;
+    const noel = base.filter((s) => s.pack === 'noel');
+    const section = (title, help, list) => list.length ? '<div class="song-sec"><div class="h2">' + title + '</div>' + (help ? '<div class="help">' + help + '</div>' : '') + '</div><div class="songs">' + list.map((s) => card(s)).join('') + '</div>' : '';
+    const noelHtml = section(kid ? 'Noël ✶' : 'Pack de Noël', kid ? 'Des chants de Noël, en version facile et à deux mains.' : 'Chants du domaine public, en version facile et à deux mains.', noel);
+    const levels = [1, 2, 3, 4].map((lv) => section('Niveau ' + lv + ' · ' + LEVELS[lv][0], LEVELS[lv][1], base.filter((s) => s.level === lv && s.pack !== 'noel'))).join('');
+    const pg = pick && C ? C.progress(p, pick) : null;
     A.shell('morceaux', A.header() + '<h1 class="h1">Morceaux</h1>' +
-      '<div class="help">' + (kid ? 'Choisis un morceau. Commence en Tranquille, puis tente le Défi !' : 'Commencez en mode Tranquille : la musique attend la bonne note. Passez en Défi pour jouer en rythme.') + '</div>' +
-      '<div class="between"><div class="h2">' + (kid ? 'Tes morceaux à toi' : 'Mes morceaux') + '</div><a class="btn small" href="#importer">+ Importer un fichier MIDI</a></div>' +
-      (perso.length ? '<div class="songs">' + perso.map((s) => '<div class="song-wrap">' + card(s) + '<a class="song-edit" href="#importer-' + s.id + '" aria-label="Modifier ' + A.esc(s.title) + '">Modifier</a></div>').join('') + '</div>'
+      '<div class="help">' + (kid ? 'Choisis un morceau. « Apprendre » te guide pas à pas ; « Jouer », c\'est direct !' : 'Touchez un morceau pour le jouer, ou « Apprendre » pour un cours guidé, pas à pas.') + '</div>' +
+      (pick ? '<div class="hero next-hero pick-hero"><div class="nh-top"><span class="eyebrow accent-text">' + (started[0] ? (kid ? 'Ton cours en cours' : 'Votre cours en cours') : (kid ? 'Ton prochain morceau' : 'Morceau conseillé')) + '</span><span class="eyebrow">Niveau ' + pick.level + '</span></div><div class="body">' +
+        '<div class="h2">' + A.esc(pick.title) + '</div><div class="help">' + A.esc(pick.desc) + '</div>' +
+        '<div class="row" style="flex-wrap:wrap"><a class="btn" href="' + (C ? C.hrefOf(pick, C.nextStep(p, pick) || C.plan(pick)[0]) : '#jeu-' + pick.id) + '">' + A.ICON.play + ' ' + (pg && pg.n ? 'Continuer le cours (' + pg.n + '/' + pg.total + ')' : (kid ? 'L\'apprendre pas à pas' : 'L\'apprendre pas à pas')) + '</a><a class="btn ghost" href="#jeu-' + pick.id + '">Jouer directement</a></div></div></div>' : '') +
+      (xmas ? noelHtml : '') +
+      '<div class="between song-sec"><div class="h2">' + (kid ? 'Tes morceaux à toi' : 'Mes morceaux') + '</div><a class="btn small" href="#importer">+ Importer un fichier MIDI</a></div>' +
+      (perso.length ? '<div class="songs">' + perso.map((s) => card(s)).join('') + '</div>'
         : '<div class="soon">' + (kid ? 'Ajoute la musique que tu aimes depuis un fichier MIDI : elle tombera sur l\'écran comme les autres morceaux.' : 'Ajoutez vos propres morceaux depuis un fichier MIDI (.mid) : choisissez les pistes, la main et le passage à travailler. Ils restent sur cet appareil, utilisables sans internet.') + '</div>') +
-      '<div class="h2">' + (kid ? 'Les morceaux d\'Octave' : 'Morceaux d\'Octave') + '</div>' +
-      '<div class="songs">' + MU.SONGS.filter((s) => !s.perso).map(card).join('') + '</div>');
+      levels + (xmas ? '' : noelHtml) +
+      '<div class="song-sec"><div class="h2">Outils</div></div><div class="drills">' +
+        '<a class="drill" href="#metronome"><span class="label">Métronome</span><span class="help">Tempo, mesure, croches</span></a>' +
+        '<a class="drill" href="#oreille-jeu"><span class="label">' + (kid ? 'Joue d\'oreille' : 'Jouer d\'oreille') + '</span><span class="help">Retrouve un air rien qu\'en l\'écoutant</span></a>' +
+        '<a class="drill" href="#partition-' + (pick ? pick.id : 'lune') + '"><span class="label">Partition entière</span><span class="help">Lire un morceau en pleine page</span></a></div>');
   }
 
   A.screens.jeu = Game;
