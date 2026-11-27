@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const A = window.App, E = window.Engine, MU = window.Music;
-  const BUILD = '0.10';
+  const BUILD = '0.10.1';
   const LOG_MAX = 200;
   const log = []; /* journal gardé tant que l'appli est ouverte */
 

@@ -1,5 +1,5 @@
 /* Service worker : garde l'appli disponible sans internet. */
-const CACHE = 'octave-v0.10';
+const CACHE = 'octave-v0.10.1';
 const SOUNDS = 'octave-sons-v1'; /* les sons de piano ne changent pas d'une version à l'autre */
 const FILES = ['./', './index.html', './styles.css', './app.js', './engine.js', './mascots.js', './music.js', './game.js', './learn.js', './monde3.js', './path.js', './train.js', './midi.js', './arrange.js', './mysongs.js', './rewards.js', './diag.js', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting())); });

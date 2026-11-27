@@ -23,7 +23,7 @@ window.MidiFile = (function () {
       while (i < b.length - 8 && str(4) !== 'MTrk') { i += 4; const skip = u32(); i += skip; }
       if (i >= b.length - 8) break;
       i += 4; const len = u32(), end = Math.min(b.length, i + len);
-      const tr = { name: '', notes: [], channels: new Set(), program: null };
+      const tr = { name: '', notes: [], channels: new Set(), program: null, progs: {} };
       const open = {}; /* clé canal-note → [début, vélocité] */
       let tick = 0, status = 0;
       while (i < end) {
@@ -49,7 +49,7 @@ window.MidiFile = (function () {
           } else if (cmd === 0x80 || cmd === 0x90) {
             const k = ch * 128 + d1;
             if (open[k]) { close(tr, open[k], d1, ch, tick); delete open[k]; }
-          } else if (cmd === 0xc0 && tr.program === null) tr.program = d1;
+          } else if (cmd === 0xc0) { if (tr.program === null) tr.program = d1; if (tr.progs[ch] === undefined) tr.progs[ch] = d1; }
         }
       }
       Object.keys(open).forEach((k) => close(tr, open[k], k % 128, Math.floor(k / 128), tick));
@@ -64,13 +64,24 @@ window.MidiFile = (function () {
     const tAt = tempos.filter((x) => x.tick / tpq <= firstNote + 0.001).pop() || tempos[0];
     const bpm = tAt ? Math.round(60000000 / tAt.us) : 120;
     const sig = sigs[0] || { num: 4, den: 4 };
-    const list = tracks.map((tr, k) => ({
+    /* une piste qui mélange plusieurs canaux (fichiers « format 0 », très courants) : un canal = un instrument, on les sépare */
+    const split = [];
+    tracks.forEach((tr) => {
+      const chs = [...new Set(tr.notes.map((n) => n.ch))];
+      if (chs.length <= 1) { split.push(tr); return; }
+      chs.sort((a, b) => a - b).forEach((ch) => split.push({ name: (tr.name.trim() ? tr.name.trim() + ' · ' : '') + (ch === 9 ? 'batterie' : (GM_NAMES[famIdx(tr.progs[ch])] || 'instrument') + ' (canal ' + (ch + 1) + ')'),
+        notes: tr.notes.filter((n) => n.ch === ch), channels: new Set([ch]), program: tr.progs[ch] !== undefined ? tr.progs[ch] : null, gen: true }));
+    });
+    const list = split.map((tr, k) => ({
       index: k, name: tr.name.trim(), notes: tr.notes.sort((a, c) => a.t - c.t || a.m - c.m),
-      drums: tr.channels.size > 0 && [...tr.channels].every((c) => c === 9), program: tr.program
+      drums: tr.channels.size > 0 && [...tr.channels].every((c) => c === 9), program: tr.program, gen: !!tr.gen
     })).filter((tr) => tr.notes.length);
     if (!list.length) throw new Error('Ce fichier MIDI ne contient aucune note.');
     return { title: title.trim(), bpm: Math.max(30, Math.min(240, bpm)), beatsPerBar: sig.num * 4 / sig.den, tracks: list };
   }
+  /* familles General MIDI, pour nommer les instruments d'un fichier sans noms de pistes */
+  const GM_NAMES = ['piano', 'percussions', 'orgue', 'guitare', 'basse', 'cordes', 'ensemble', 'cuivres', 'saxo', 'flûte', 'synthé solo', 'nappe', 'effets', 'ethnique', 'percussions', 'effets'];
+  const famIdx = (p) => (p === undefined || p === null ? 0 : Math.floor(p / 8));
   function text(d) {
     let s = ''; for (let k = 0; k < d.length; k++) s += String.fromCharCode(d[k]);
     try { return decodeURIComponent(escape(s)).replace(/[\u0000-\u001f]/g, ''); } catch (e) { return s.replace(/[^\x20-\x7eÀ-ÿ]/g, ''); }
