@@ -12,9 +12,12 @@
     clavier: sv('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v8M12 5v8M16 5v8"/>'),
     morceau: sv('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'),
     concert: sv('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>'),
+    oreille: sv('<path d="M7 10a5 5 0 0 1 10 0c0 3-3 4-3 7a3 3 0 0 1-5 2"/><path d="M10 10a2 2 0 0 1 4 0"/>'),
+    rythme: sv('<path d="M8 18V6l10-2v12"/><path d="M8 10l10-2"/><circle cx="6" cy="18" r="2"/><circle cx="16" cy="16" r="2"/>'),
     lock: sv('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>')
   };
-  const TLABEL = { lire: 'Lire', quiz: 'Quiz', clavier: 'Au clavier', morceau: 'Morceau', concert: 'Concert' };
+  const TLABEL = { lire: 'Lire', quiz: 'Quiz', clavier: 'Au clavier', morceau: 'Morceau', concert: 'Concert', oreille: 'Oreille', rythme: 'Rythme' };
+  const CHORDS = { do: { name: 'Do', notes: [48, 52, 55] }, fa: { name: 'Fa', notes: [41, 45, 48] }, sol: { name: 'Sol', notes: [43, 47, 50] } };
 
   /* ---------- Les Mondes ---------- */
   const WORLDS = [
@@ -56,7 +59,25 @@
       { type: 'clavier', ex: { kind: 'lis' }, title: 'Lecture rapide' },
       { type: 'concert', ref: 'jingle' }
     ] },
-    { id: 'm3', title: 'La main gauche', kid: 'Le club', sum: 'La clé de fa, les notes graves, les premiers accords Do, Fa et Sol.', soon: true },
+    { id: 'm3', title: 'La main gauche', kid: 'Le club', sum: 'La clé de fa, la main gauche en position de Do, les accords Do, Fa et Sol.', steps: [
+      { type: 'lire', ref: 'cle-fa' },
+      { type: 'quiz', ref: 'cle-fa' },
+      { type: 'lire', ref: 'main-gauche', teach: [48, 50, 52, 53, 55] },
+      { type: 'clavier', ex: { kind: 'trouve', zone: 'grave' }, title: 'Trouve tes notes dans les graves' },
+      { type: 'clavier', ex: { kind: 'suite', zone: 'grave', hand: 'g' }, title: 'Les cinq doigts de la main gauche' },
+      { type: 'quiz', ref: 'main-gauche' },
+      { type: 'clavier', ex: { kind: 'lis', zone: 'grave' }, title: 'Lis en clé de fa' },
+      { type: 'morceau', ref: 'ours' },
+      { type: 'oreille', ref: 'aigu', title: 'Aigu ou grave ?' },
+      { type: 'lire', ref: 'accords', teach: [41, 43, 45, 47] },
+      { type: 'quiz', ref: 'accords' },
+      { type: 'clavier', ex: { kind: 'accord', chords: ['do'] }, title: 'Ton premier accord : Do' },
+      { type: 'clavier', ex: { kind: 'accord', chords: ['do', 'fa', 'sol'] }, title: 'Do, Fa, Sol' },
+      { type: 'rythme', ref: 'tape', title: 'Tape le rythme' },
+      { type: 'morceau', ref: 'valse' },
+      { type: 'oreille', ref: 'repete', title: 'Rejoue ce que tu entends' },
+      { type: 'concert', ref: 'blues' }
+    ] },
     { id: 'm4', title: 'Les deux mains', kid: 'La grande salle', sum: 'Mélodie et basse ensemble, la coordination, le tempo qui monte.', soon: true },
     { id: 'm5', title: 'Plus loin', kid: 'Le stade', sum: 'Dièses et bémols, croches, gammes, et le début de la Lettre à Élise.', soon: true }
   ];
@@ -75,11 +96,13 @@
     return s.type === 'concert' ? 'Concert : ' + song.title : song.title;
   }
   function stepMeta(s) {
-    const min = s.type === 'lire' ? lessonOf(s.ref).min : s.type === 'quiz' ? 2 : s.type === 'concert' ? 4 : 3;
-    return TLABEL[s.type] + ' · ' + min + ' min' + (s.type === 'lire' || s.type === 'quiz' ? ' · sans piano' : '');
+    const min = s.type === 'lire' ? lessonOf(s.ref).min : s.type === 'quiz' || s.type === 'oreille' || s.type === 'rythme' ? 2 : s.type === 'concert' ? 4 : 3;
+    const free = s.type === 'lire' || s.type === 'quiz' || s.type === 'rythme' || (s.type === 'oreille' && s.ref === 'aigu');
+    return TLABEL[s.type] + ' · ' + min + ' min' + (free ? ' · sans piano' : '');
   }
   function href(s) {
-    return { lire: '#cours-', quiz: '#quiz-', clavier: '#exo-', morceau: '#jeu-', concert: '#jeu-' }[s.type] + s.ref + (s.type === 'concert' ? '-concert' : '');
+    if (s.type === 'rythme') return '#tape';
+    return { lire: '#cours-', quiz: '#quiz-', clavier: '#exo-', morceau: '#jeu-', concert: '#jeu-', oreille: '#ecoute-' }[s.type] + s.ref + (s.type === 'concert' ? '-concert' : '');
   }
 
   /* ---------- Progression ---------- */
@@ -98,13 +121,17 @@
     quiz: (r) => r.score >= r.total * 0.75,
     clavier: (r) => r.acc >= 0.7,
     morceau: (r) => r.stars >= 1,
-    concert: (r) => r.mode === 'defi' && r.stars >= 1
+    concert: (r) => r.mode === 'defi' && r.stars >= 1,
+    oreille: (r) => r.acc >= 0.7,
+    rythme: (r) => r.acc >= 0.7
   };
   const RULE = {
     quiz: 'Pour valider l\'étape : 3 bonnes réponses sur 4.',
     clavier: 'Pour valider l\'étape : 70 % de réussite.',
     morceau: 'Pour valider l\'étape : au moins 1 étoile.',
-    concert: 'Pour valider le concert : au moins 1 étoile en mode Défi. Tu peux ralentir le tempo.'
+    concert: 'Pour valider le concert : au moins 1 étoile en mode Défi. Tu peux ralentir le tempo.',
+    oreille: 'Pour valider l\'étape : 70 % de bonnes réponses.',
+    rythme: 'Pour valider l\'étape : 70 % de réussite.'
   };
   /* appelé par les écrans à la fin d'une activité ; valide l'étape en cours si elle correspond */
   function report(type, ref, r) {
@@ -154,24 +181,27 @@
     trouve: { title: 'Trouve les notes', how: 'Une note est demandée : trouve-la partout sur le clavier.' },
     joue: { title: 'Joue la note demandée', how: 'Le nom d\'une note s\'affiche : joue-la.' },
     lis: { title: 'Lis et joue', how: 'Une note s\'affiche sur la portée : trouve laquelle et joue-la.' },
-    suite: { title: 'Joue la suite', how: 'Joue les notes dans l\'ordre, avec les doigts indiqués.' }
+    suite: { title: 'Joue la suite', how: 'Joue les notes dans l\'ordre, avec les doigts indiqués.' },
+    accord: { title: 'Joue l\'accord', how: 'Un accord s\'affiche : joue ses trois notes.' }
   };
   const HINTS = {
     trouve: ['sur 2 octaves, sans chrono', 'sur 2 octaves', 'sur 3 octaves', 'sur 4 octaves', 'sur 4 octaves, toutes tes notes'],
     joue: ['la touche s\'allume tout de suite', 'la touche s\'allume au bout de 4 secondes', 'indice seulement après une erreur, octave exacte', 'sans indice, octave exacte', 'sans indice, octave exacte, sur 2 octaves'],
     lis: ['le nom de la note est écrit', 'le nom apparaît après une erreur', 'sans le nom', 'sans le nom, octave exacte', 'sans le nom, octave exacte, sur 2 octaves'],
-    suite: ['3 notes, noms, doigts et touches montrés', '4 notes, noms et doigts', '5 notes, noms seulement', '6 notes, sur la portée', '7 notes, sur la portée']
+    suite: ['3 notes, noms, doigts et touches montrés', '4 notes, noms et doigts', '5 notes, noms seulement', '6 notes, sur la portée', '7 notes, sur la portée'],
+    accord: ['les touches s\'allument, une note après l\'autre', 'les noms sont écrits, une note après l\'autre', 'les noms sont écrits, les trois ensemble', 'sans les noms, les trois ensemble', 'sans les noms, ensemble, à la bonne octave']
   };
   function freeEx(p) {
     const sk = skill(p), c = current(p), ci = c ? STEPS.indexOf(c) : STEPS.length;
     const readIdx = STEPS.findIndex((s) => s.type === 'lire' && s.ref === 'notes-sol');
-    const kinds = ['trouve', 'joue', 'suite'].concat(ci > readIdx ? ['lis'] : []);
+    const chordIdx = STEPS.findIndex((s) => s.type === 'lire' && s.ref === 'accords');
+    const kinds = ['trouve', 'joue', 'suite'].concat(ci > readIdx ? ['lis'] : [], ci > chordIdx ? ['accord'] : []);
     const min = Math.min.apply(null, kinds.map((k) => lvlOf(p, k)));
     let pool = kinds.filter((k) => lvlOf(p, k) === min && k !== sk.lastFree);
     if (!pool.length) pool = kinds.filter((k) => k !== sk.lastFree);
     const kind = pool[Math.floor(Math.random() * pool.length)];
     sk.lastFree = kind;
-    return { kind };
+    return kind === 'accord' ? { kind, chords: ['do', 'fa', 'sol'] } : { kind };
   }
   const whiteStep = (m, dir) => { do { m += dir; } while (E.isBlack(m)); return m; };
 
@@ -204,7 +234,10 @@
     const ex = step ? step.ex : freeEx(p);
     const kind = ex.kind, lvl = lvlOf(p, kind);
     let notes = learned(p);
+    if (ex.zone === 'grave') { notes = notes.filter((m) => m < 60); if (notes.length < 3) notes = [48, 50, 52, 53, 55]; }
+    const chords = (ex.chords || []).map((id) => CHORDS[id]);
     const pcs = ex.pcs || Array.from(new Set(notes.map((m) => m % 12)));
+    const clefOf = (m) => (m < 60 ? 'fa' : 'sol');
     const exact = (kind === 'joue' && lvl >= 3) || (kind === 'lis' && lvl >= 4);
     if (lvl >= 5 && (kind === 'joue' || kind === 'lis')) notes = notes.concat(notes.map((m) => m + 12).filter((m) => m <= 84 && notes.indexOf(m) < 0 && notes.indexOf(m + 12) < 0));
 
@@ -217,21 +250,23 @@
       runs.sort((a, b) => b.length - a.length);
       const r0 = runs[0];
       let start = Math.floor(Math.random() * Math.max(1, r0.length - 4));
-      if (r0.indexOf(60) >= 0 && (lvl <= 2 || Math.random() < 0.5)) start = Math.min(r0.indexOf(60), Math.max(0, r0.length - 5));
+      const c0 = r0.findIndex((m) => m % 12 === 0);
+      if (c0 >= 0 && (lvl <= 2 || Math.random() < 0.5)) start = Math.min(c0, Math.max(0, r0.length - 5));
       win = r0.slice(start, start + 5);
     }
+    const hand = ex.hand || (win && win[win.length - 1] < 60 ? 'g' : 'd');
 
     /* étendue du clavier affiché */
     let lo, hi;
     if (kind === 'trouve') {
       const maxOct = Math.max(2, Math.floor((Math.min(window.innerWidth, 1180) - 70) / 26 / 7));
       const oct = Math.min(lvl <= 2 ? 2 : lvl === 3 ? 3 : 4, maxOct);
-      lo = oct >= 4 ? 36 : 48; hi = lo + 12 * oct;
+      lo = oct >= 4 || ex.zone === 'grave' ? 36 : 48; hi = lo + 12 * oct;
     } else {
-      const src = win || notes;
+      const src = kind === 'accord' ? [].concat.apply([], chords.map((c) => c.notes)) : win || notes;
       lo = whiteStep(Math.min.apply(null, src), -1); hi = whiteStep(Math.max.apply(null, src), 1);
     }
-    const ROUNDS = { trouve: Math.min(kid ? 3 : 4, pcs.length * 2), joue: (kid ? 8 : 10) + (lvl >= 4 ? 2 : 0), lis: (kid ? 8 : 10) + (lvl >= 4 ? 2 : 0), suite: kid ? 3 : 4 }[kind];
+    const ROUNDS = { trouve: Math.min(kid ? 3 : 4, pcs.length * 2), joue: (kid ? 8 : 10) + (lvl >= 4 ? 2 : 0), lis: (kid ? 8 : 10) + (lvl >= 4 ? 2 : 0), suite: kid ? 3 : 4, accord: kid ? 5 : 6 }[kind];
     const title = step ? stepTitle(step) : KINDS[kind].title;
     const ctx = step ? 'Monde ' + step.world.n + ' · étape ' + step.n + ' sur ' + step.world.steps.length : (kid ? 'Entraînement express' : 'Entraînement adapté');
     const back = A.prevHash && A.prevHash.indexOf('exo') !== 0 ? '#' + A.prevHash : '#parcours';
@@ -241,9 +276,10 @@
       '<div class="card exo-card" id="xcard"></div>' +
       '<div class="kbd-wrap"><div class="kbd exo-kbd" id="xkbd" aria-label="Clavier"></div></div>');
     const card = document.getElementById('xcard');
-    const keys = keyboard(document.getElementById('xkbd'), lo, hi, ((kind === 'joue' || kind === 'suite') && lvl <= 2) || (kind === 'lis' && lvl === 1));
+    const keys = keyboard(document.getElementById('xkbd'), lo, hi, ((kind === 'joue' || kind === 'suite' || kind === 'accord') && lvl <= 2) || (kind === 'lis' && lvl === 1));
 
-    const S = { phase: 'start', round: 0, ok: 0, miss: 0, t0: 0, target: null, curMiss: false, seq: [], si: 0, todo: [], found: new Set(), prev: null, missed: new Set(), hintT: 0, mood: 'idle' };
+    const S = { phase: 'start', round: 0, ok: 0, miss: 0, t0: 0, target: null, curMiss: false, seq: [], si: 0, todo: [], found: new Set(), prev: null, missed: new Set(), hintT: 0, mood: 'idle', chord: null, got: new Set() };
+    const together = kind === 'accord' && lvl >= 3 && DB.input.source !== 'micro';
     const lit = new Set();
     function hint(m) { const k = keys[m]; if (k) k.classList.add('target'); if (DB.input.lights) { E.midi.light(m, true); lit.add(m); } }
     function clearHints() { clearTimeout(S.hintT); Object.values(keys).forEach((k) => k.classList.remove('target')); lit.forEach((m) => E.midi.light(m, false)); lit.clear(); }
@@ -252,7 +288,7 @@
       const len = Math.min(lvl + 2, 7); let i = lvl <= 2 ? 0 : Math.floor(Math.random() * win.length);
       const seq = [i], steps = lvl <= 2 ? [-1, 1] : [-2, -1, 1, 2];
       while (seq.length < len) { const o = steps.map((d) => i + d).filter((j) => j >= 0 && j < win.length); i = o[Math.floor(Math.random() * o.length)]; seq.push(i); }
-      return seq.map((j) => ({ m: win[j], f: j + 1 }));
+      return seq.map((j) => ({ m: win[j], f: hand === 'g' ? win.length - j : j + 1 }));
     }
     function next() {
       clearHints();
@@ -264,6 +300,9 @@
         S.found = new Set(); Object.values(keys).forEach((k) => k.classList.remove('found'));
       } else if (kind === 'suite') {
         S.seq = makeSeq(); S.si = 0; S.target = S.seq[0].m; if (lvl <= 1) hint(S.target);
+      } else if (kind === 'accord') {
+        const k = pick(p, chords.map((c, i) => 900 + i), S.prev); S.prev = k; S.chord = chords[k - 900]; S.target = k; S.got = new Set();
+        if (lvl <= 1) S.chord.notes.forEach(hint);
       } else {
         S.target = pick(p, notes, S.prev); S.prev = S.target;
         if (kind === 'joue' && lvl <= 1) hint(S.target);
@@ -278,7 +317,9 @@
       if (S.phase === 'start') {
         card.innerHTML = '<div class="between"><span class="eyebrow">' + KINDS[kind].title + '</span><span class="chip lvl">Niveau ' + lvl + '</span></div>' +
           '<div class="challenge">' + mascot() + '<div><div class="label">' + KINDS[kind].how + '</div><div class="help" style="margin-top:4px">Ton niveau : ' + HINTS[kind][lvl - 1] + '.</div></div></div>' +
-          '<div><div class="help" style="margin-bottom:6px">' + (kind === 'trouve' && ex.pcs ? 'Note travaillée' : 'Tes notes, celles que tu as apprises') + '</div><div class="row" style="flex-wrap:wrap;gap:6px">' + noteChips(kind === 'trouve' ? pcs.map((x) => 60 + x) : win || notes.filter((m) => m <= 84)) + '</div></div>' +
+            (kind === 'accord' ? '<div><div class="help" style="margin-bottom:6px">Accords travaillés</div><div class="row" style="flex-wrap:wrap;gap:6px">' + chords.map((c) => '<span class="chip small">' + c.name + '</span>').join('') + '</div></div>'
+            : '<div><div class="help" style="margin-bottom:6px">' + (kind === 'trouve' && ex.pcs ? 'Note travaillée' : 'Tes notes, celles que tu as apprises') + '</div><div class="row" style="flex-wrap:wrap;gap:6px">' + noteChips(kind === 'trouve' ? pcs.map((x) => 60 + x) : win || notes.filter((m) => m <= 84)) + '</div></div>') +
+          (hand === 'g' && kind !== 'accord' ? '<div class="help step-rule">Main gauche : le petit doigt est le doigt 5, le pouce le doigt 1.</div>' : '') +
           '<div class="help">L\'exercice s\'adapte : réussis-le à 90 % pour passer au niveau suivant.</div>' +
           '<button class="btn" id="xgo">' + A.ICON.play + (kid ? ' C\'est parti' : ' Commencer') + '</button>';
         document.getElementById('xgo').onclick = async (e) => { e.target.disabled = true; await A.startInput(); S.phase = 'play'; S.t0 = performance.now(); next(); };
@@ -292,12 +333,17 @@
         ask = '<div><div class="help">Joue</div><div class="ask">' + (exact ? E.name(S.target) : MU.natName(S.target)) + '</div><div class="help">' + (exact ? 'à la bonne octave' : 'n\'importe quel ' + MU.natName(S.target)) + '</div></div>';
       } else if (kind === 'lis') {
         const showName = lvl <= 1 || (lvl === 2 && S.curMiss);
-        ask = '<div class="staff-box exo-staff">' + MU.staff({ notes: [{ m: S.target, d: 1, label: showName ? MU.natName(S.target) : '' }], clef: 'sol', width: 220, height: 130, gap: 12, top: 40, startX: 130, label: 'Note à jouer' }) + '</div>';
-      } else {
+        ask = '<div class="staff-box exo-staff">' + MU.staff({ notes: [{ m: S.target, d: 1, label: showName ? MU.natName(S.target) : '' }], clef: clefOf(S.target), width: 220, height: 130, gap: 12, top: 40, startX: 130, label: 'Note à jouer' }) + '</div>';
+      } else if (kind === 'suite') {
         const onStaff = lvl >= 4;
         ask = onStaff
-          ? '<div class="staff-box exo-staff wide">' + MU.staff({ notes: S.seq.map((n, i) => ({ m: n.m, d: 1, color: i < S.si ? 'var(--muted)' : i === S.si ? 'var(--accent)' : undefined })), clef: 'sol', width: 120 + S.seq.length * 46, height: 130, gap: 12, top: 40, startX: 90, dx: 46, label: 'Suite à jouer' }) + '</div>'
-          : '<div class="seq">' + S.seq.map((n, i) => '<span class="seq-n' + (i < S.si ? ' done' : i === S.si ? ' cur' : '') + '">' + (lvl <= 3 ? '<b>' + MU.natName(n.m) + '</b>' : '') + (lvl <= 2 ? '<i>doigt ' + n.f + '</i>' : '') + '</span>').join('') + '</div>';
+          ? '<div class="staff-box exo-staff wide">' + MU.staff({ notes: S.seq.map((n, i) => ({ m: n.m, d: 1, color: i < S.si ? 'var(--muted)' : i === S.si ? 'var(--accent)' : undefined })), clef: clefOf(win[0]), width: 120 + S.seq.length * 46, height: 130, gap: 12, top: 40, startX: 90, dx: 46, label: 'Suite à jouer' }) + '</div>'
+          : (hand === 'g' ? '<div class="help">Main gauche</div>' : '') + '<div class="seq">' + S.seq.map((n, i) => '<span class="seq-n' + (i < S.si ? ' done' : i === S.si ? ' cur' : '') + '">' + (lvl <= 3 ? '<b>' + MU.natName(n.m) + '</b>' : '') + (lvl <= 2 ? '<i>doigt ' + n.f + '</i>' : '') + '</span>').join('') + '</div>';
+      }
+      if (kind === 'accord') {
+        ask = '<div><div class="help">Joue l\'accord de</div><div class="ask">' + S.chord.name + '</div>' +
+          (lvl <= 3 ? '<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">' + S.chord.notes.map((m) => '<span class="chip small' + (S.got.has(m % 12) ? ' got' : '') + '">' + MU.natName(m) + '</span>').join('') + '</div>' : '<div class="help">' + S.got.size + ' note' + (S.got.size > 1 ? 's' : '') + ' sur 3</div>') +
+          '<div class="help" style="margin-top:6px">' + (together ? 'Les trois en même temps' : 'Ensemble ou l\'une après l\'autre') + '</div></div>';
       }
       card.innerHTML = '<div class="between"><span class="eyebrow">' + (kind === 'suite' ? 'Suite ' : 'Tour ') + S.round + ' sur ' + ROUNDS + '</span>' + pips() + '</div>' +
         '<div class="challenge">' + mascot() + ask + '</div>';
@@ -308,7 +354,7 @@
     }
     const blip = () => { if (DB.input.source !== 'micro') E.sound.blip(true); };
     function wrong() {
-      S.miss++; if (!S.curMiss) { S.curMiss = true; mastery(p, kind === 'trouve' ? 60 + S.target : S.target, false); S.missed.add(kind === 'trouve' ? 60 + S.target : S.target); }
+      S.miss++; if (!S.curMiss) { S.curMiss = true; mastery(p, kind === 'trouve' ? 60 + S.target : S.target, false); if (kind !== 'accord') S.missed.add(kind === 'trouve' ? 60 + S.target : S.target); else S.missed.add(S.chord.name); }
       if ((kind === 'joue' && lvl === 3) || (kind === 'suite' && lvl === 2)) hint(S.target);
       if (kind === 'lis' && lvl === 2) draw();
       react('oops');
@@ -324,6 +370,17 @@
         S.found.add(m); S.ok++; if (k) k.classList.add('found'); blip();
         if (S.found.size === S.todo.length) { if (!S.curMiss) mastery(p, 60 + S.target, true); react('happy'); S.phase = 'wait'; setTimeout(() => { if (S.phase !== 'wait') return; S.phase = 'play'; next(); }, 600); }
         else { draw(); react('happy'); }
+        return;
+      }
+      if (kind === 'accord') {
+        const inChord = S.chord.notes.some((c) => (lvl >= 5 ? c === m : c % 12 === m % 12));
+        if (!inChord) { wrong(); return; }
+        if (!S.got.has(m % 12)) { S.got.add(m % 12); S.ok++; }
+        const done = together
+          ? S.chord.notes.every((c) => Array.from(E.held).some((h) => (lvl >= 5 ? h === c : h % 12 === c % 12)))
+          : S.got.size === 3;
+        if (done) { if (!S.curMiss) mastery(p, S.target, true); blip(); react('happy'); S.phase = 'wait'; draw(); setTimeout(() => { if (S.phase !== 'wait') return; S.phase = 'play'; next(); }, 700); }
+        else draw();
         return;
       }
       if (!match(m, S.target)) { wrong(); return; }
@@ -348,7 +405,7 @@
       const lvlMsg = after > lvl ? (kid ? 'Niveau ' + after + ' débloqué ! ' : 'Vous passez au niveau ' + after + ' : ') + HINTS[kind][after - 1] + '.'
         : after < lvl ? 'On revient au niveau ' + after + ' pour consolider : ' + HINTS[kind][after - 1] + '.'
         : 'Niveau ' + lvl + ' : ' + (acc >= 0.6 ? 'encore un essai à 90 % pour monter.' : 'c\'est le premier niveau, on continue.');
-      const work = Array.from(S.missed).map((m) => MU.natName(m));
+      const work = Array.from(S.missed).map((m) => (typeof m === 'string' ? 'accord de ' + m : MU.natName(m)));
       S.mood = acc >= 0.7 ? 'happy' : 'idle';
       card.innerHTML = '<div class="eyebrow">' + (acc >= 0.7 ? (kid ? 'Bravo !' : 'Terminé') : 'Presque') + '</div>' +
         '<div class="challenge">' + mascot() + '<div><div class="ask">' + pct + ' %</div><div class="help">' + S.ok + ' juste' + (S.ok > 1 ? 's' : '') + ' · ' + S.miss + ' erreur' + (S.miss > 1 ? 's' : '') + ' · ' + time + ' s' + (coins ? ' · +' + coins + ' pièces' : '') + '</div></div></div>' +
@@ -382,7 +439,8 @@
       '<div class="cols"><div class="stack">' + worlds + '</div><div class="stack">' +
         '<div class="h2">Révisions</div>' +
         '<a class="drill drill-main" href="#exo-libre"><span class="label">' + (kid ? 'Entraînement express' : 'Entraînement adapté') + '</span><span class="help">Au clavier · avec tes notes : ' + learned(p).map((m) => MU.natName(m)).filter((x, i, a) => a.indexOf(x) === i).join(', ') + '</span></a>' +
-        '<div class="drills">' + drill('#quiz-lecture-sol', 'Lis les notes', 'Clé de sol · sans piano') + drill('#quiz-lecture-fa', 'Lis les notes', 'Clé de fa · sans piano') + drill('#quiz-rythme', 'Les durées', 'Sans piano') + '</div>' +
+        '<div class="drills">' + drill('#quiz-lecture-sol', 'Lis les notes', 'Clé de sol · sans piano') + drill('#quiz-lecture-fa', 'Lis les notes', 'Clé de fa · sans piano') + drill('#quiz-rythme', 'Les durées', 'Sans piano') +
+          drill('#tape', 'Tape le rythme', 'Sans piano') + drill('#ecoute-aigu', 'Aigu ou grave ?', 'Oreille · sans piano') + drill('#ecoute-repete', 'Rejoue ce que tu entends', 'Oreille · au clavier') + '</div>' +
         '<details class="world lib"><summary class="world-head"><span class="path-txt"><span class="label">Toutes les leçons</span><span class="help">Pour relire une leçon, ou prendre de l\'avance</span></span></summary><div class="path">' +
           lessons.map((l) => { const r = (p.lessons || {})[l.id]; return '<a class="path-item" href="#cours-' + l.id + '"><span class="path-num' + (r && r.score >= r.total * 0.75 ? ' ok' : '') + '">' + TICON.lire + '</span><span class="path-txt"><span class="label">' + A.esc(l.title) + '</span><span class="help">' + l.min + ' min' + (r ? ' · quiz ' + r.score + '/' + r.total : '') + '</span></span></a>'; }).join('') +
         '</div></details>' +
@@ -391,5 +449,5 @@
 
   A.screens.parcours = PathScreen;
   A.screens.exo = Exo;
-  window.Path = { WORLDS, STEPS, TICON, TLABEL, current, learned, isDone, unlocked, href, stepTitle, stepMeta, stepFor, report, resultHtml, worldName, skill, lvlOf, KINDS };
+  window.Path = { WORLDS, STEPS, TICON, TLABEL, current, learned, isDone, unlocked, href, stepTitle, stepMeta, stepFor, report, resultHtml, worldName, skill, lvlOf, KINDS, keyboard, pick, mastery };
 })();
