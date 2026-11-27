@@ -1,7 +1,7 @@
 /* Octave — application familiale d'apprentissage du piano (socle v0.1) */
 (function () {
   'use strict';
-  const VERSION = '0.3';
+  const VERSION = '0.5';
   const E = window.Engine, M = window.Mascots;
   const app = document.getElementById('app');
   const KEY = 'octave.v1';
@@ -77,7 +77,7 @@
     if (raw !== lastHash) { prevHash = lastHash; lastHash = raw; }
     let name = raw.split('-')[0]; param = raw.slice(name.length + 1);
     if (!SCREENS[name]) { name = ''; param = ''; }
-    if (!prof() && name !== 'qui') name = 'qui';
+    if (!prof() && name !== 'qui' && name !== 'joueur') name = 'qui';
     if (!name) name = 'accueil';
     if (window.octaveUpdate && name === 'accueil') { location.reload(); return; }
     applyTheme();
@@ -117,7 +117,8 @@
       '<div class="who-list">' + DB.profiles.map((p) =>
         '<button class="who-card" data-id="' + p.id + '">' + M.svg(p.mascot, 'happy').replace('<svg ', '<svg style="color:var(--text)" ') +
         '<span class="name">' + esc(p.name) + '</span><span class="meta">Mode ' + (p.mode === 'enfant' ? 'Enfant' : 'Adulte') + ' · ' + esc(M.list[p.mascot].name) + '</span></button>').join('') +
-      '</div><div class="help">Version ' + VERSION + ' · socle</div></div>';
+        '<a class="who-card who-add" href="#joueur-nouveau"><span class="who-plus" aria-hidden="true">+</span><span class="name">Ajouter</span><span class="meta">Un nouveau joueur</span></a>' +
+      '</div><div class="help">Octave · version ' + VERSION + '</div></div>';
     app.querySelectorAll('.who-card').forEach((b) => b.addEventListener('click', () => { DB.current = b.dataset.id; save(); E.audio(); go('accueil'); }));
   }
 
@@ -229,6 +230,59 @@
   }
   function stopInput() { if (E.mic.running) E.mic.stop(); E.sound.enabled = true; }
 
+  /* ---------- Écran : profil d'un joueur (créer, modifier, supprimer) ---------- */
+  function Player(arg) {
+    const isNew = arg === 'nouveau', p0 = isNew ? null : DB.profiles.find((x) => x.id === arg);
+    if (!isNew && !p0) { go('qui'); return; }
+    const d = p0 ? { name: p0.name, mode: p0.mode, mascot: p0.mascot, theme: p0.theme || 'peche' } : { name: '', mode: 'adulte', mascot: 'tempo', theme: 'peche' };
+    const back = isNew ? (prof() ? '#reglages' : '#qui') : '#reglages';
+    document.documentElement.dataset.theme = 'peche'; document.documentElement.dataset.mode = 'adulte';
+    function draw() {
+      const mascots = M.forMode(d.mode);
+      if (mascots.indexOf(d.mascot) < 0) d.mascot = mascots[0];
+      app.innerHTML = '<div class="player">' +
+        '<div class="row"><a href="' + back + '" class="icon-btn" aria-label="Retour">' + ICON.back + '</a><h1 class="h1">' + (isNew ? 'Nouveau joueur' : 'Profil de ' + esc(p0.name)) + '</h1></div>' +
+        '<div class="card"><label class="label" for="pname">Prénom</label><input id="pname" class="pfield" maxlength="20" autocomplete="off" value="' + esc(d.name) + '" placeholder="Prénom du joueur"></div>' +
+        '<div class="card"><div class="label">Mode</div><div class="seg" role="group" aria-label="Mode"><button data-pm="adulte" aria-pressed="' + (d.mode === 'adulte') + '">Adulte</button><button data-pm="enfant" aria-pressed="' + (d.mode === 'enfant') + '">Enfant</button></div>' +
+          '<div class="help">' + (d.mode === 'enfant' ? 'Ambiance « scène de concert », étapes plus courtes, pièces à gagner, réglages sensibles protégés.' : 'Design sobre, thème au choix, exercices un peu plus longs.') + '</div></div>' +
+        '<div class="card"><div class="label">Mascotte</div><div class="pal-list">' + mascots.map((id) => '<button class="pal" data-pp="' + id + '" aria-pressed="' + (d.mascot === id) + '" style="color:var(--text)">' + M.svg(id) + esc(M.list[id].name) + '</button>').join('') + '</div></div>' +
+        (d.mode === 'adulte' ? '<div class="card"><div class="label">Thème</div><div class="seg" role="group" aria-label="Thème"><button data-pt="peche" aria-pressed="' + (d.theme === 'peche') + '">Pêche</button><button data-pt="anthracite" aria-pressed="' + (d.theme === 'anthracite') + '">Anthracite</button></div></div>' : '') +
+        '<div class="row" style="flex-wrap:wrap"><button class="btn" id="psave">' + (isNew ? 'Créer le joueur' : 'Enregistrer') + '</button><a class="btn ghost" href="' + back + '">Annuler</a></div>' +
+        (!isNew && DB.profiles.length > 1 ? '<div class="card line"><div class="label">Supprimer ce joueur</div><div class="help">Sa progression sera effacée définitivement.</div><button class="btn small ghost danger" id="pdel">Supprimer ' + esc(p0.name) + '</button></div>' : '') +
+        '</div>';
+      const inp = document.getElementById('pname');
+      inp.oninput = () => { d.name = inp.value; };
+      if (isNew) setTimeout(() => inp.focus(), 50);
+      app.querySelectorAll('[data-pm]').forEach((b) => b.onclick = () => { d.mode = b.dataset.pm; draw(); });
+      app.querySelectorAll('[data-pp]').forEach((b) => b.onclick = () => { d.mascot = b.dataset.pp; draw(); });
+      app.querySelectorAll('[data-pt]').forEach((b) => b.onclick = () => { d.theme = b.dataset.pt; draw(); });
+      document.getElementById('psave').onclick = () => {
+        const name = d.name.trim().replace(/\s+/g, ' ');
+        if (!name) { toast('Écris un prénom'); inp.focus(); return; }
+        if (DB.profiles.some((x) => x !== p0 && x.name.toLowerCase() === name.toLowerCase())) { toast('Ce prénom est déjà pris'); return; }
+        const apply = () => {
+          if (isNew) {
+            const id = 'p' + Date.now().toString(36);
+            DB.profiles.push({ id, name, mode: d.mode, theme: d.theme, mascot: d.mascot, coins: 0, best: null });
+            DB.current = id; save(); toast('Bienvenue ' + name + ' !'); go('accueil');
+          } else {
+            Object.assign(p0, { name, mode: d.mode, theme: d.theme, mascot: d.mascot }); save(); toast('Profil enregistré'); go(DB.current === p0.id ? 'reglages' : 'qui');
+          }
+        };
+        /* passer un profil enfant en adulte demande une réponse d'adulte */
+        if (p0 && p0.mode === 'enfant' && d.mode !== 'enfant') gate(apply); else apply();
+      };
+      const del = document.getElementById('pdel');
+      if (del) del.onclick = () => gate(() => {
+        if (!del.dataset.ok) { del.dataset.ok = '1'; del.textContent = 'Sûr ? Touche encore pour supprimer'; return; }
+        DB.profiles = DB.profiles.filter((x) => x !== p0);
+        if (DB.current === p0.id) DB.current = null;
+        save(); toast('Joueur supprimé'); go('qui');
+      });
+    }
+    draw();
+  }
+
   /* ---------- Écran : réglages ---------- */
   function Settings() {
     const p = prof();
@@ -246,7 +300,9 @@
           '<button class="pal" data-pal="' + id + '" aria-pressed="' + (p.mascot === id) + '" style="color:var(--text)">' + M.svg(id) + esc(M.list[id].name) + '</button>').join('') + '</div>' +
       '</div><div class="stack">' +
         '<div class="eyebrow">Son</div><div class="list"><div class="item"><label class="label" for="vol">Volume de l\'appli</label><input id="vol" type="range" min="0" max="1" step="0.05" value="' + DB.input.volume + '" style="width:160px;accent-color:var(--accent)"></div></div>' +
-        '<div class="eyebrow">Joueurs</div><div class="list"><div class="item"><span class="label">Changer de joueur</span><a href="#qui" class="btn small ghost">Qui joue ?</a></div>' +
+        '<div class="eyebrow">Joueurs</div><div class="list"><div class="item"><span class="label">Prénom, mode et mascotte de ' + esc(p.name) + '</span><a href="#joueur-' + p.id + '" class="btn small ghost">Modifier</a></div>' +
+        '<div class="item"><span class="label">Changer de joueur</span><a href="#qui" class="btn small ghost">Qui joue ?</a></div>' +
+        '<div class="item"><span class="label">Ajouter un joueur</span><a href="#joueur-nouveau" class="btn small ghost">Ajouter</a></div>' +
         '<div class="item"><span class="label">Remettre à zéro la progression de ' + esc(p.name) + '</span><button class="btn small ghost" id="reset">Effacer</button></div></div>' +
         '<div class="eyebrow">Niveaux au clavier</div><div class="list">' + ['trouve', 'joue', 'lis', 'suite'].map((k) => '<div class="item"><span class="label">' + window.Path.KINDS[k].title + '</span><span class="chip lvl">Niveau ' + window.Path.lvlOf(p, k) + '</span></div>').join('') + '</div>' +
         '<div class="help">Les niveaux s\'ajustent tout seuls : ils montent à 90 % de réussite et redescendent sous 60 %.' + (isKid() ? ' Le changement de mode et la remise à zéro demandent une réponse d\'adulte.' : '') + '</div>' +
@@ -468,7 +524,7 @@
       if (!h || h === 'accueil' || h === 'qui') location.reload(); else { window.octaveUpdate = true; toast('Nouvelle version prête : elle s\'affichera au retour à l\'accueil'); }
     });
   }
-  Object.assign(SCREENS, { qui: Who, accueil: Home, clavier: Keyboard, parcours: Soon('parcours'), morceaux: Soon('morceaux'), reglages: Settings });
+  Object.assign(SCREENS, { qui: Who, joueur: Player, accueil: Home, clavier: Keyboard, parcours: Soon('parcours'), morceaux: Soon('morceaux'), reglages: Settings });
   window.App = { get DB() { return DB; }, get prevHash() { return prevHash; }, startInput, stopInput, gate, save, prof, isKid, shell, header, esc, toast, go, onLeave, ICON, screens: SCREENS, route, inputOn, inputLabel, VERSION };
   window.addEventListener('DOMContentLoaded', route);
 })();
