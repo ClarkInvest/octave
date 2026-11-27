@@ -32,7 +32,7 @@
   function Importer(param) {
     if (param) return Edit(param);
     const kid = A.isKid(), DB = A.DB;
-    let file = null, fname = '', opts = null, built = null, preview = null;
+    let file = null, fname = '', opts = null, built = null, preview = null, vers = [], previewBtn = null;
 
     A.shell('morceaux', A.header() +
       '<div class="row"><a href="#morceaux" class="icon-btn" aria-label="Retour aux morceaux">' + A.ICON.back + '</a><h1 class="h1">' + (kid ? 'Ajoute ton morceau' : 'Importer un morceau') + '</h1></div>' +
@@ -71,8 +71,29 @@
       const mono = DB.input.source === 'micro';
       opts = { title: (file.title && file.title.length > 2 && !/untitled|^track|tempo|sans titre|^(piano|melody|mélodie)$/i.test(file.title) ? file.title : fname).slice(0, 60),
         tracks: (playable.length ? playable : file.tracks).map((t) => t.index), part: 'tout', melody: mono || kid, grid: 0.25, from: 1, to: bars, bars, tempo: file.bpm };
-      box.innerHTML = '<div class="cols"><div class="stack">' +
-        '<div class="card"><label class="label" for="ititle">Titre</label><input id="ititle" class="pfield" maxlength="60" value="' + A.esc(opts.title) + '"></div>' +
+      /* versions proposées automatiquement par l'arrangeur */
+      const V = window.Arrange ? window.Arrange.versions(file) : { list: [] };
+      vers = V.list;
+      if (mono) vers.forEach((v) => { v.recommended = v.id === 'facile'; });
+      else if (kid && !vers.some((v) => v.id === 'refrain')) vers.forEach((v) => { v.recommended = v.id === 'facile'; });
+      const An = V.analysis;
+      const roleTxt = An && An.melody ? 'Mélodie trouvée dans la piste « ' + A.esc(An.melody.tr.name || 'Piste ' + (An.melody.tr.index + 1)) + ' »' +
+        (An.bass ? ', basse dans « ' + A.esc(An.bass.tr.name || 'Piste ' + (An.bass.tr.index + 1)) + ' »' : '') +
+        (An.harmony.length ? ', accompagnement sur ' + An.harmony.length + ' piste' + (An.harmony.length > 1 ? 's' : '') : '') +
+        (An.tracks.some((x) => x.drums) ? ', batterie mise de côté' : '') + '.' : '';
+      const vcard = (v, i) => {
+        const lv = MF.level({ notes: v.notes, length: v.length, tempo: opts.tempo });
+        return '<div class="ver' + (v.recommended ? ' rec' : '') + '"><div class="between"><div class="label">' + A.esc(kid ? v.kidLabel : v.label) + '</div>' + (v.recommended ? '<span class="chip lvl">Conseillé</span>' : '<span class="chip small">Niveau ' + lv + '</span>') + '</div>' +
+          '<div class="staff-box ver-pv">' + MU.preview({ notes: v.notes }, { x0: 64, dx: 36, count: 8, width: 380, height: 110, gap: 8, top: 34, gapG: 6, topG: 14, label: 'Début de la version ' + v.label }) + '</div>' +
+          (kid ? '' : '<div class="help">' + A.esc(v.desc) + '</div>') +
+          '<div class="help">' + (v.recommended ? 'Niveau ' + lv + ' · ' : '') + v.notes.length + ' notes · environ ' + fmtTime(v.length, opts.tempo) + '</div>' +
+          '<div class="row" style="flex-wrap:wrap"><button class="btn small" data-vsave="' + i + '">' + A.ICON.play + ' Choisir</button><button class="btn small ghost" data-vplay="' + i + '">Écouter</button></div></div>';
+      };
+      box.innerHTML = '<div class="card"><label class="label" for="ititle">Titre</label><input id="ititle" class="pfield" maxlength="60" value="' + A.esc(opts.title) + '"></div>' +
+        (vers.length ? '<div class="h2">' + (kid ? 'Choisis ta version' : 'Versions proposées') + '</div>' + (kid ? '' : '<div class="help">' + roleTxt + ' Chaque version est arrangée pour le piano : la mélodie à la main droite, une main gauche simple, un rythme lisible.</div>') +
+          '<div class="ver-grid">' + vers.map(vcard).join('') + '</div>' : '') +
+        '<details class="adv"' + (vers.length ? '' : ' open') + '><summary><span class="label">Réglages avancés</span><span class="help">pistes, main, passage, rythme : tout régler à la main</span></summary>' +
+        '<div class="cols"><div class="stack">' +
         '<div class="card"><div class="label">Pistes à jouer</div><div class="list" style="background:var(--surf2)">' +
           file.tracks.map((t) => '<label class="item" style="cursor:pointer"><span><span class="label">' + A.esc(t.name || 'Piste ' + (t.index + 1)) + (t.drums ? ' · batterie' : '') + '</span><br><span class="help">' + t.notes.length + ' notes · ' + range(t.notes) + '</span></span>' +
             '<input type="checkbox" data-tr="' + t.index + '"' + (opts.tracks.includes(t.index) ? ' checked' : '') + ' style="width:22px;height:22px;accent-color:var(--accent);flex-shrink:0"></label>').join('') + '</div>' +
@@ -85,7 +106,11 @@
           '<div class="label" style="margin-top:6px">Rythme</div><div class="seg" role="group" aria-label="Précision du rythme"><button data-grid="0.5">Simplifié</button><button data-grid="0.25">Précis</button></div>' +
           '<div class="row" style="margin-top:6px"><label class="label" for="itempo">Tempo</label><input id="itempo" class="pfield num" type="number" inputmode="numeric" min="30" max="240" value="' + opts.tempo + '"><span class="help">noires par minute (vitesse d\'origine : ' + file.bpm + ')</span></div></div>' +
         '<div class="card" id="isum"></div>' +
-      '</div></div>';
+      '</div></div></details>' +
+      '<button class="btn small ghost" id="iother2" style="align-self:flex-start">Choisir un autre fichier</button>';
+      box.querySelectorAll('[data-vsave]').forEach((b) => b.onclick = () => saveVersion(vers[+b.dataset.vsave]));
+      box.querySelectorAll('[data-vplay]').forEach((b) => b.onclick = () => { const was = preview && previewBtn === b; stopPreview(); if (!was) playPreview(vers[+b.dataset.vplay].notes, b); });
+      document.getElementById('iother2').onclick = () => { file = null; pickScreen(); };
 
       box.querySelectorAll('[data-tr]').forEach((c) => c.onchange = () => { const k = +c.dataset.tr; opts.tracks = c.checked ? opts.tracks.concat(k) : opts.tracks.filter((x) => x !== k); refresh(); });
       box.querySelectorAll('[data-part]').forEach((b) => b.onclick = () => { opts.part = b.dataset.part; refresh(); });
@@ -115,31 +140,42 @@
         '<div class="help">' + built.notes.length + ' notes · ' + range(built.notes) + ' · environ ' + fmtTime(built.length, opts.tempo) + (chords ? ' · avec des accords' : '') + '</div>' +
         (built.notes.length > 1500 ? '<div class="help step-rule">C\'est un long morceau : choisir un passage le rendra plus agréable à travailler.</div>' : '') +
         (chords && DB.input.source === 'micro' ? '<div class="help step-rule">Le micro n\'entend qu\'une note à la fois : activez « Une note à la fois » pour jouer ce morceau au micro.</div>' : '') +
-        '<div class="row" style="flex-wrap:wrap"><button class="btn" id="isave">' + A.ICON.play + ' Enregistrer et jouer</button><button class="btn ghost" id="iplay">Écouter le début</button></div>' +
-        '<button class="btn small ghost" id="iother" style="align-self:flex-start">Choisir un autre fichier</button>';
+        '<div class="row" style="flex-wrap:wrap"><button class="btn" id="isave">' + A.ICON.play + ' Enregistrer et jouer</button><button class="btn ghost" id="iplay">Écouter le début</button></div>';
       document.getElementById('isave').onclick = save;
-      document.getElementById('iplay').onclick = () => { if (preview) stopPreview(); else playPreview(); };
-      document.getElementById('iother').onclick = () => { file = null; pickScreen(); };
+      document.getElementById('iplay').onclick = (e) => { const was = preview && previewBtn === e.currentTarget; stopPreview(); if (!was) playPreview(built.notes, e.currentTarget); };
     }
 
-    function playPreview() {
+    function playPreview(notes, btn) {
       E.audio(); E.sound.enabled = true;
-      const spb = 60 / opts.tempo, ns = built.notes.filter((n) => n.t * spb < 15);
+      const spb = 60 / opts.tempo, ns = notes.filter((n) => n.t * spb < 15);
       preview = [];
       ns.forEach((n) => {
         preview.push(setTimeout(() => E.sound.play(n.m, 80), n.t * spb * 1000));
         preview.push(setTimeout(() => E.sound.stop(n.m), (n.t + n.d * 0.9) * spb * 1000));
       });
       preview.push(setTimeout(stopPreview, ((ns.length ? Math.max(...ns.map((n) => n.t + n.d)) : 0) * spb + 0.3) * 1000));
-      const b = document.getElementById('iplay'); if (b) b.textContent = 'Arrêter';
+      previewBtn = btn || null; if (previewBtn) { previewBtn.dataset.txt = previewBtn.textContent; previewBtn.textContent = 'Arrêter'; }
     }
     function stopPreview() {
       if (!preview) return;
       preview.forEach(clearTimeout); preview = null;
       for (let m = 21; m <= 108; m++) E.sound.stop(m);
-      const b = document.getElementById('iplay'); if (b) b.textContent = 'Écouter le début';
+      if (previewBtn && document.body.contains(previewBtn)) previewBtn.textContent = previewBtn.dataset.txt || 'Écouter'; previewBtn = null;
     }
 
+    /* enregistre une version proposée */
+    function saveVersion(v) {
+      stopPreview();
+      const base = (opts.title || '').trim().replace(/\s+/g, ' ') || fname || 'Mon morceau';
+      const title = (base + ' (' + (v.id === 'facile' ? 'mélodie' : v.id === 'basse' ? 'mélodie + basse' : v.id === 'piano' ? 'piano' : v.id === 'refrain' ? 'refrain' : 'début') + ')').slice(0, 70);
+      const rec = { id: 'u' + Date.now().toString(36), title, by: 'Mon fichier MIDI', tempo: opts.tempo,
+        level: MF.level({ notes: v.notes, length: v.length, tempo: opts.tempo }), desc: v.desc,
+        n: v.notes.map((n) => [n.m, n.t, n.d, n.h === 'g' ? 1 : 0]), length: v.length, bar: v.bar || file.beatsPerBar || 4, added: Date.now() };
+      if (!add(rec)) return;
+      if (window.Trophies) setTimeout(() => window.Trophies.check(), 1200);
+      A.toast((A.isKid() ? 'Morceau ajouté : ' : 'Morceau enregistré : ') + title);
+      A.go('jeu-' + rec.id);
+    }
     function save() {
       const title = (opts.title || '').trim().replace(/\s+/g, ' ') || fname || 'Mon morceau';
       const hand = { tout: 'deux mains', droite: 'main droite', gauche: 'main gauche' }[opts.part];
